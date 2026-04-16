@@ -1,0 +1,126 @@
+/* VARIABLES */
+:root {
+  --bg: #0f1117;
+  --card: #1a1d26;
+  --accent: #4f8cff;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+}
+
+/* BODY */
+body {
+  margin: 0;
+  font-family: system-ui;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* OVERLAYS & CONTENT */
+.background-overlay {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* TOP SECTION */
+.top {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding-top: 60px;
+}
+
+/* SETTINGS BUTTON FIXED NEXT TO SEARCH */
+#settingsBtn {
+  position: absolute;
+  left: calc(50% + 330px); /* searchBar is 600px wide */
+  transform: translateY(-50%);
+  width: 16px;
+}
+
+#settingsBtn:hover {
+  opacity: 1;
+}
+
+#errorToastContainer {
+  position: fixed;
+  top: 70px; /* below search */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.error-toast {
+  background: rgba(20,20,30,0.95);
+  color: #fff;
+  border: 1px solid rgba(255,80,80,0.4);
+  padding: 8px 12px;
+  border-radius: 10px;
+  min-width: 250px;
+  max-width: 500px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: 0.2s;
+  overflow: hidden;
+}
+#errorToastContainer {
+  position: fixed;
+  top: 10px; /* was 70px */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+}
+
+.error-toast:hover {
+  background: rgba(30,30,40,0.95);
+}
+
+.error-toast.expanded {
+  white-space: normal;
+}
+
+.error-toast.collapsed {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Chrome / Edge */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.25);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) rgba(0,0,0,0.2);
+}

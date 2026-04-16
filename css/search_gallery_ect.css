@@ -1,0 +1,72 @@
+/* SEARCH */
+#searchBar {
+  margin: 0 auto;
+  width: 600px;
+  max-width: 80%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: none;
+  background: #1a1d26;
+  font-size: 18px;
+  color: white;
+}
+
+#searchSuggestions {
+  width: 600px;
+  max-width: 80%;
+  background: #1a1d26;
+  border-radius: 10px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.suggestion {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.suggestion:hover {
+  background: rgba(255,255,255,0.05);
+}
+.suggestion.active {
+  background: rgba(255,255,255,0.1);
+}
+
+/* MIDDLE / SCRATCHPAD */
+.middle {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#scratchpad {
+  width: 60%;
+  height: 60%;
+  background: rgba(20,20,30,0.85);
+  border: none;
+  border-radius: 12px;
+  padding: 20px;
+  font-size: 16px;
+  color: white;
+}
+
+/* GALLERY */
+.gallery {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.gallery img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1s ease-in-out;
+}

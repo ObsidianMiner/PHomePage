@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\phome]
+@="URL:phome Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\phome\shell]
+
+[HKEY_CLASSES_ROOT\phome\shell\open]
+
+[HKEY_CLASSES_ROOT\phome\shell\open\command]
+@="\"C:\\Users\\JGEle\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe\" \"C:\\Users\\JGEle\\Desktop\\PHomePage\\home_helper.py\" \"%1\""

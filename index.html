@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<link rel="stylesheet" href="css/index.css">
+<link rel="stylesheet" href="css/dock_links.css">
+<link rel="stylesheet" href="css/search_gallery_ect.css">
+<link rel="stylesheet" href="css/settings.css">
+</head>
+    
+<body>
+    <div id="errorToastContainer"></div>
+
+    <div class="background-overlay">
+        <div class="gallery"></div>
+        <div class="content">
+            <div class="top">
+                <input id="searchBar" placeholder="Search or launch..." autofocus />
+                <img id="settingsBtn" src="assets/settings.png" />
+                <div id="searchSuggestions"></div>
+            </div>
+
+            <div class="middle">
+                <textarea id="scratchpad" placeholder="Notes..."></textarea>
+            </div>
+
+            <div class="dock" id="dock">
+                <div class="dock-inner" id="dock-inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsWindow" class="hidden">
+        <div class="settings-wrapper">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="gallerySettings">Gallery</button>
+                <button class="tab-btn" data-tab="linkEditor">Links</button>
+                <button class="tab-btn" data-tab="backupsTab">Backups</button>
+                <button class="tab-btn" data-tab="syncTab">Sync</button>
+            </div>
+
+            <div class="tab-content" id="gallerySettings">
+                <div class="tab-inner-container"></div>
+            </div>
+
+            <div class="tab-content hidden" id="linkEditor">
+                <div class="tab-inner-container"></div>
+                <div style="margin-top:10px;">
+                    <button id="saveLinksBtn">Save Changes</button>
+                    <button id="revertLinksBtn">Revert to data.js</button>
+                </div>
+            </div>
+
+            <div class="tab-content hidden" id="backupsTab">
+                <div class="tab-inner-container" id="backupsContainer"></div>
+            </div>
+
+            <div class="tab-content hidden" id="syncTab">
+                <div class="tab-inner-container" id="syncContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/error_toast.js"></script>
+    <script src="js/data.js"></script>
+    <script>
+        var isLocal = true;
+
+        document.write(
+        '<script src="' +
+        (isLocal ? 'js/galleryphotos.local.js' : 'js/galleryphotos.js') +
+        '"><\/script>'
+        );
+    </script>
+    <script src="js/dock.js" defer></script>
+    <script src="js/settings.js" defer></script>
+    <script src="js/search.js" defer></script>
+    <script src="js/scratchpad.js" defer></script>
+    <script src="js/gallery.js" defer></script>
+</body>
+</html>
