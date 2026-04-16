@@ -1,185 +1,125 @@
 import sys
-import subprocess
-import urllib.parse
-import os
-import sys
 import json
-import tempfile
+import threading
+import urllib.parse
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
+from browser import open_url, open_app
+from apps import get_all_apps
+from sync import sync_push, sync_pull
+
+RESPONSE_PORT = 19420
+
+
+# ======================
+# ARGUMENT PARSING
+# ======================
 
 def parse_args():
     if len(sys.argv) < 2:
-        return None
+        return {}
 
     raw = sys.argv[1]
-
-    raw = raw.replace("phome://", "")
-    raw = raw.replace("phome:", "")
+    raw = raw.removeprefix("phome://").removeprefix("phome:")
 
     if raw.startswith("http"):
         return {"url": [raw]}
 
     return urllib.parse.parse_qs(raw)
 
-def write_response(data):
-    path = os.path.join(tempfile.gettempdir(), "phome_response.json")
-    print(path)
-    input()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f)
 
-def send_callback(action, data):
-    print(f"CALLBACK|{action}|{json.dumps(data)}")
-# -------- OPEN URL --------
-def open_url(url, browser="chrome", profile:str=None):
-    url = urllib.parse.unquote(url)
-
-    if os.name == "nt":  # Windows
-        if browser == "firefox":
-            firefox_path = r'"C:\Program Files\Mozilla Firefox\firefox.exe"'
-            cmd = f'{firefox_path} "{url}"'
-            subprocess.Popen(cmd)
-            return
-
-        chrome_path = r'"C:\Program Files\Google\Chrome\Application\chrome.exe"'
-        if not os.path.exists(chrome_path.strip('"')):
-            chrome_path = r'"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"'
-
-        cmd = f'{chrome_path}'
-
-        if profile:
-            cmd += f' --profile-directory="{profile}"'  # or use {profile}
-
-        cmd += f' "{url}"'
-
-        subprocess.Popen(cmd)
-
-    else:  # Linux
-        if browser == "firefox":
-            subprocess.Popen(["firefox", url])
-        else:
-            cmd = ["google-chrome"]
-            if profile:
-                cmd.append(f'--profile-directory={profile}')
-            cmd.append(url)
-            subprocess.Popen(cmd)
+def get(args, key, default=None):
+    val = args.get(key, [default])[0]
+    if isinstance(val, str):
+        val = val.removesuffix("/")
+    return val
 
 
-# -------- OPEN APP --------
-def open_app(path, args=None):
-    path = urllib.parse.unquote(path)
+# ======================
+# ONE-SHOT RESPONSE SERVER
+# ======================
 
-    cmd = [path]
+def serve_response_once(data):
+    """Spin up a localhost server that serves `data` as JSON exactly once, then stops."""
 
-    if args:
-        # split args safely
-        cmd.extend(args.split(" "))
+    payload = json.dumps(data).encode("utf-8")
 
-    subprocess.Popen(cmd)
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(payload)
 
-# ------- Find Apps -------
-def get_windows_apps():
-    paths = [
-        os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
-        os.path.expandvars(r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs")
-    ]
+        def log_message(self, *args):
+            pass  # silence request logs
 
-    apps = []
+    server = HTTPServer(("127.0.0.1", RESPONSE_PORT), Handler)
+    # serve_forever in a thread, stop after first request
+    def run():
+        server.handle_request()  # handles exactly one request then returns
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout=30)  # wait up to 30s for JS to poll
 
-    for base in paths:
-        for root, _, files in os.walk(base):
-            for file in files:
-                if file.endswith(".lnk"):
-                    full_path = os.path.join(root, file)
-                    name = os.path.splitext(file)[0]
-                    apps.append({
-                        "name": name,
-                        "path": full_path
-                    })
 
-    return apps
-
-def get_linux_apps():
-    paths = [
-        "/usr/share/applications",
-        os.path.expanduser("~/.local/share/applications")
-    ]
-
-    apps = []
-
-    for base in paths:
-        if not os.path.exists(base):
-            continue
-
-        for file in os.listdir(base):
-            if not file.endswith(".desktop"):
-                continue
-
-            full_path = os.path.join(base, file)
-
-            try:
-                with open(full_path, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-
-                name = None
-                exec_cmd = None
-
-                for line in lines:
-                    if line.startswith("Name="):
-                        name = line.strip().split("=",1)[1]
-                    elif line.startswith("Exec="):
-                        exec_cmd = line.strip().split("=",1)[1]
-
-                if name and exec_cmd:
-                    # clean exec (remove % args)
-                    exec_cmd = exec_cmd.split(" ")[0]
-                    apps.append({
-                        "name": name,
-                        "path": exec_cmd
-                    })
-
-            except:
-                continue
-
-    return apps
-
-def get_all_apps():
-    if os.name == "nt":
-        return get_windows_apps()
-    else:
-        return get_linux_apps()
-
+# ======================
+# MAIN
+# ======================
 
 def main():
     args = parse_args()
     if not args:
         return
 
-    url = args.get("url", [None])[0]
-    browser = args.get("browser", ["chrome"])[0]
-    if browser:
-        browser = browser.removesuffix('/')
-    profile = args.get("profile", [None])[0]
-    if profile:
-        profile = profile.removesuffix('/')
+    action    = get(args, "action")
+    url       = get(args, "url")
+    browser   = get(args, "browser", "chrome")
+    profile   = get(args, "profile")
+    app       = get(args, "app")
+    app_args  = get(args, "args")
 
-    app = args.get("app", [None])[0]
-    app_args = args.get("args", [None])[0]
-    
-    if app:
-        app = app.removesuffix('/')
-    if url:
-        url = url.removesuffix('/')
-    
+    # -- Open URL --
     if url:
         if url == "getapps":
             apps = get_all_apps()
-            write_response({"type": "apps", "data": apps})
-            return
+            serve_response_once({"type": "apps", "data": apps})
         else:
             open_url(url, browser, profile)
-    elif app:
+        return
+
+    # -- Open App --
+    if app:
         open_app(app, app_args)
+        return
+
+    # -- Sync --
+    if action == "sync_push":
+        try:
+            worker_url = get(args, "worker_url")
+            secret     = get(args, "secret")
+            links      = urllib.parse.unquote(get(args, "links", "[]"))
+            notes      = urllib.parse.unquote(get(args, "notes", ""))
+            try:
+                result = sync_push(worker_url, secret, links, notes)
+                serve_response_once({"type": "sync", "action": "push", **result})
+            except Exception as e:
+                serve_response_once({"type": "sync", "action": "push", "ok": False, "error": str(e)})
+            return
+        except e:
+            print(e)
+            input()
+
+    if action == "sync_pull":
+        worker_url = get(args, "worker_url")
+        secret     = get(args, "secret")
+        try:
+            result = sync_pull(worker_url, secret)
+            serve_response_once({"type": "sync", "action": "pull", **result})
+        except Exception as e:
+            serve_response_once({"type": "sync", "action": "pull", "ok": False, "error": str(e)})
+        return
 
 
 if __name__ == "__main__":

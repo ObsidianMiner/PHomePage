@@ -8,6 +8,7 @@ const settingsWindow = document.getElementById("settingsWindow");
 const gallerySettingsEl = document.querySelector("#gallerySettings .tab-inner-container");
 const linkEditorEl      = document.querySelector("#linkEditor .tab-inner-container");
 const backupsContainer  = document.getElementById("backupsContainer");
+const syncContainer     = document.getElementById("syncContainer");
 
 let galleryConfig = JSON.parse(localStorage.getItem("galleryConfig") || "{}");
 let linksConfig   = structuredClone(
@@ -169,7 +170,7 @@ function initTabs() {
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
 
       if (btn.dataset.tab === "backupsTab") buildBackupsTab();
-      if (btn.dataset.tab === "syncTab") buildSyncTab();
+      if (btn.dataset.tab === "syncTab")    buildSyncTab();
     };
   });
 }
@@ -260,10 +261,6 @@ function createImagesContainer(folder, images) {
 
 function getEnabledImages() {
   const result = [];
-  if (!GALLERY_STRUCTURE)
-  {
-    return result;
-  }
 
   Object.entries(GALLERY_STRUCTURE).forEach(([folder, images]) => {
     if (!(galleryConfig[folder]?.enabled ?? true)) return;
@@ -566,93 +563,118 @@ function initSaveButtons() {
   };
 }
 
+
 // ======================
 // SYNC
 // ======================
- 
+
 function getSyncConfig() {
   return JSON.parse(localStorage.getItem("syncConfig") || "{}");
 }
- 
+
 function saveSyncConfig(cfg) {
   localStorage.setItem("syncConfig", JSON.stringify(cfg));
 }
- 
-function syncFetch(path, method, body) {
-  const { workerUrl, secret } = getSyncConfig();
-  if (!workerUrl || !secret) throw new Error("Sync not configured.");
- 
-  return fetch(`${workerUrl}/${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Secret": secret
-    },
-    body: body !== undefined ? body : undefined
+
+const RESPONSE_PORT = 19420;
+
+// Trigger a phome:// action and poll localhost for the response.
+function phomeRequest(params) {
+  const query = new URLSearchParams(params).toString();
+  window.location.href = `phome://${query}`;
+
+  // Poll http://127.0.0.1:RESPONSE_PORT until Python's one-shot server responds.
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + 5000; // 5s timeout
+    const interval = 150; // poll every 150ms
+
+    function poll() {
+      if (Date.now() > deadline) {
+        reject(new Error("Sync timed out — is home_helper running?"));
+        return;
+      }
+      fetch(`http://127.0.0.1:${RESPONSE_PORT}`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(resolve)
+        .catch(() => setTimeout(poll, interval));
+    }
+
+    setTimeout(poll, 500); // give Python a moment to start the server
   });
 }
- 
+
 async function syncPush() {
-  const links = JSON.stringify(linksConfig);
-  const notes = localStorage.getItem("notes") || "";
- 
-  await syncFetch("links", "PUT", links);
-  await syncFetch("notes", "PUT", notes);
+  const { workerUrl, secret } = getSyncConfig();
+  if (!workerUrl || !secret) throw new Error("Sync not configured.");
+
+  const links = encodeURIComponent(JSON.stringify(linksConfig));
+  const notes = encodeURIComponent(localStorage.getItem("notes") || "");
+
+  const result = await phomeRequest({
+    action: "sync_push",
+    worker_url: workerUrl,
+    secret,
+    links,
+    notes
+  });
+
+  if (!result.ok) throw new Error(result.error || "Push failed.");
 }
- 
+
 async function syncPull() {
-  const [linksRes, notesRes] = await Promise.all([
-    syncFetch("links", "GET"),
-    syncFetch("notes", "GET")
-  ]);
- 
-  if (!linksRes.ok || !notesRes.ok) throw new Error("Sync pull failed.");
- 
-  const remoteLinks = await linksRes.text();
-  const remoteNotes = await notesRes.text();
- 
-  if (remoteLinks) {
-    localStorage.setItem("linksConfig", remoteLinks);
+  const { workerUrl, secret } = getSyncConfig();
+  if (!workerUrl || !secret) throw new Error("Sync not configured.");
+
+  const result = await phomeRequest({
+    action: "sync_pull",
+    worker_url: workerUrl,
+    secret
+  });
+
+  if (!result.ok) throw new Error(result.error || "Pull failed.");
+
+  if (result.links) {
+    localStorage.setItem("linksConfig", result.links);
   }
-  if (remoteNotes !== undefined) {
-    localStorage.setItem("notes", remoteNotes);
+  if (result.notes !== undefined) {
+    localStorage.setItem("notes", result.notes);
     const pad = document.getElementById("scratchpad");
-    if (pad) pad.value = remoteNotes;
+    if (pad) pad.value = result.notes;
   }
 }
- 
+
 function buildSyncTab() {
   syncContainer.innerHTML = "<h2>Sync</h2>";
- 
+
   const cfg = getSyncConfig();
- 
+
   // Config fields
   const urlLabel = document.createElement("p");
   urlLabel.textContent = "Worker URL";
   urlLabel.style.margin = "8px 0 2px";
- 
+
   const urlInput = createInput("https://phome-sync.yourname.workers.dev", "100%");
   urlInput.value = cfg.workerUrl || "";
   urlInput.style.width = "400px";
- 
+
   const secretLabel = document.createElement("p");
   secretLabel.textContent = "Secret";
   secretLabel.style.margin = "8px 0 2px";
- 
+
   const secretInput = createInput("your-secret-value", "100%");
   secretInput.type  = "password";
   secretInput.value = cfg.secret || "";
   secretInput.style.width = "400px";
- 
+
   const saveConfigBtn = createButton("Save Config", () => {
     saveSyncConfig({ workerUrl: urlInput.value.trim(), secret: secretInput.value.trim() });
     statusEl.textContent = "Config saved.";
   });
- 
+
   // Action buttons
   const btnRow = createDiv();
   btnRow.style.cssText = "display:flex; gap:8px; margin-top:16px;";
- 
+
   const pushBtn = createButton("⬆ Push to Cloud", async () => {
     statusEl.textContent = "Pushing...";
     try {
@@ -662,7 +684,7 @@ function buildSyncTab() {
       statusEl.textContent = "Push failed: " + e.message;
     }
   });
- 
+
   const pullBtn = createButton("⬇ Pull from Cloud", async () => {
     if (!confirm("Pull will overwrite your local links and notes. Continue?")) return;
     statusEl.textContent = "Pulling...";
@@ -673,15 +695,15 @@ function buildSyncTab() {
       statusEl.textContent = "Pull failed: " + e.message;
     }
   });
- 
+
   btnRow.appendChild(pushBtn);
   btnRow.appendChild(pullBtn);
- 
+
   // Status line
   const statusEl = document.createElement("p");
   statusEl.style.cssText = "color: var(--muted); font-size: 12px; margin-top: 10px;";
   statusEl.textContent = "Not synced yet.";
- 
+
   syncContainer.appendChild(urlLabel);
   syncContainer.appendChild(urlInput);
   syncContainer.appendChild(secretLabel);
@@ -690,6 +712,7 @@ function buildSyncTab() {
   syncContainer.appendChild(btnRow);
   syncContainer.appendChild(statusEl);
 }
+
 
 // ======================
 // INIT
@@ -703,10 +726,4 @@ function init() {
   buildLinkEditor();
 }
 
-try
-{
-  init();
-}catch (e) {
-  console.error(e);
-  showErrorToast?.("Settings failed to load: " + e.message);
-}
+init();
