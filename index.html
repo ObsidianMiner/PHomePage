@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/search_gallery_ect.css">
 <link rel="stylesheet" href="css/settings.css">
 </head>
-    
+
 <body>
     <div id="errorToastContainer"></div>
 
@@ -66,21 +66,44 @@
         </div>
     </div>
 
+    <!-- Core data and shared state — must load before everything else -->
     <script src="js/error_toast.js"></script>
     <script src="js/data.js"></script>
-    <script>
-        var isLocal = true;
+    <script src="js/state.js"></script>
+    <script src="js/sync.js" defer></script>
 
-        document.write(
-        '<script src="' +
-        (isLocal ? 'js/galleryphotos.local.js' : 'js/galleryphotos.js') +
-        '"><\/script>'
-        );
-    </script>
+    <!-- Page features -->
+    <script src="js/galleryphotos.local.js" defer></script>
     <script src="js/dock.js" defer></script>
-    <script src="js/settings.js" defer></script>
     <script src="js/search.js" defer></script>
     <script src="js/scratchpad.js" defer></script>
     <script src="js/gallery.js" defer></script>
+
+    <!-- Settings: loaded lazily on first gear click -->
+    <script>
+      (function() {
+        let settingsLoaded = false;
+
+        document.getElementById("settingsBtn").addEventListener("click", function() {
+          if (settingsLoaded) {
+            initSettings();
+            return;
+          }
+
+          const script = document.createElement("script");
+          script.src = "js/settings.js";
+          script.onload = () => {
+            settingsLoaded = true;
+            initSettings();
+          };
+          document.head.appendChild(script);
+        });
+
+        // Close settings when clicking the backdrop
+        document.getElementById("settingsWindow").addEventListener("click", function(e) {
+          if (e.target === this) this.classList.add("hidden");
+        });
+      })();
+    </script>
 </body>
 </html>

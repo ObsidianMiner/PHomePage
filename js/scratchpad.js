@@ -4,14 +4,15 @@ pad.value = localStorage.getItem("notes") || "";
 
 pad.addEventListener("input", () => {
   localStorage.setItem("notes", pad.value);
+  localStorage.setItem("lastSaved", Date.now().toString());
 });
 
-pad.addEventListener('keydown', (e) => {
-  if (e.key === 'Tab') {
+pad.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") {
     e.preventDefault();
 
     const start = pad.selectionStart;
-    const end = pad.selectionEnd;
+    const end   = pad.selectionEnd;
 
     pad.value =
       pad.value.substring(0, start) +

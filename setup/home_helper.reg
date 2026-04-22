@@ -9,4 +9,4 @@ Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\phome\shell\open]
 
 [HKEY_CLASSES_ROOT\phome\shell\open\command]
-@="\"C:\\Users\\JGEle\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe\" \"C:\\Users\\JGEle\\Desktop\\PHomePage\\home_helper.py\" \"%1\""
+@="C:\\Users\\JGEle\\AppData\\Local\\Microsoft\\WindowsApps\\pythonw.exe \"C:\\Users\\JGEle\\Desktop\\PHomePage\\home_helper.pyw\" \"%1\""

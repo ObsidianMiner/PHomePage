@@ -4,9 +4,9 @@ import threading
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-from browser import open_url, open_app
-from apps import get_all_apps
-from sync import sync_push, sync_pull
+from py.browser import open_url, open_app
+from py.apps import get_all_apps
+from py.sync import sync_push, sync_pull
 
 RESPONSE_PORT = 19420
 

@@ -1,8 +1,10 @@
 // ======================
-// STATE
+// SETTINGS UI
+// Loaded lazily on first gear click.
+// Depends on: state.js (linksConfig, hasUnsavedEdits, saveLinksConfig, normalizeUrl)
+//             sync.js  (syncPush, syncPull, getSyncConfig, saveSyncConfig)
 // ======================
 
-const settingsBtn    = document.getElementById("settingsBtn");
 const settingsWindow = document.getElementById("settingsWindow");
 
 const gallerySettingsEl = document.querySelector("#gallerySettings .tab-inner-container");
@@ -10,13 +12,7 @@ const linkEditorEl      = document.querySelector("#linkEditor .tab-inner-contain
 const backupsContainer  = document.getElementById("backupsContainer");
 const syncContainer     = document.getElementById("syncContainer");
 
-let galleryConfig = JSON.parse(localStorage.getItem("galleryConfig") || "{}");
-let linksConfig   = structuredClone(
-  JSON.parse(localStorage.getItem("linksConfig") || JSON.stringify(groups))
-);
-
-let openCategories  = {};
-let hasUnsavedEdits = false;
+let openCategories = {};
 
 const MAX_BACKUPS = 10;
 
@@ -25,89 +21,15 @@ const MAX_BACKUPS = 10;
 // STORAGE HELPERS
 // ======================
 
-function saveGalleryConfig() {
-  localStorage.setItem("galleryConfig", JSON.stringify(galleryConfig));
-}
-
-function saveLinksConfig() {
-  localStorage.setItem("linksConfig", JSON.stringify(linksConfig));
-}
-
-function normalizeUrl(url) {
-  if (!url) return url;
-  const trimmed = url.trim();
-  if (!trimmed || trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("phome://")) return trimmed;
-  return "https://" + trimmed;
-}
-
-
-// ======================
-// BACKUPS
-// ======================
-
 function saveBackup() {
   const backups = JSON.parse(localStorage.getItem("backups") || "[]");
-
   backups.unshift({
     timestamp: Date.now(),
-    links: structuredClone(linksConfig),
+    links: structuredClone(window.linksConfig),
     notes: localStorage.getItem("notes") || ""
   });
-
-  // keep only the most recent MAX_BACKUPS
   if (backups.length > MAX_BACKUPS) backups.length = MAX_BACKUPS;
-
   localStorage.setItem("backups", JSON.stringify(backups));
-}
-
-function buildBackupsTab() {
-  backupsContainer.innerHTML = "<h2>Backups</h2>";
-
-  const backups = JSON.parse(localStorage.getItem("backups") || "[]");
-
-  if (!backups.length) {
-    const empty = document.createElement("p");
-    empty.textContent = "No backups yet. Backups are created each time you save links.";
-    empty.style.color = "var(--muted)";
-    backupsContainer.appendChild(empty);
-    return;
-  }
-
-  backups.forEach((backup, i) => {
-    const row = createDiv("settings-item");
-    row.style.justifyContent = "space-between";
-
-    const label = document.createElement("span");
-    const date  = new Date(backup.timestamp);
-    label.textContent = `${date.toLocaleDateString()} ${date.toLocaleTimeString()} — ${backup.links.length} categories, ${backup.links.reduce((n, c) => n + c.links.length, 0)} links`;
-
-    const btns = createDiv();
-    btns.style.display = "flex";
-    btns.style.gap = "6px";
-
-    btns.appendChild(createButton("Restore Links", () => {
-      if (!confirm("Restore links from this backup? Unsaved changes will be lost.")) return;
-      localStorage.setItem("linksConfig", JSON.stringify(backup.links));
-      location.reload();
-    }));
-
-    btns.appendChild(createButton("Restore Notes", () => {
-      if (!confirm("Restore notes from this backup? Current notes will be overwritten.")) return;
-      localStorage.setItem("notes", backup.notes);
-      document.getElementById("scratchpad").value = backup.notes;
-    }));
-
-    btns.appendChild(createButton("✕", () => {
-      const all = JSON.parse(localStorage.getItem("backups") || "[]");
-      all.splice(i, 1);
-      localStorage.setItem("backups", JSON.stringify(all));
-      buildBackupsTab();
-    }));
-
-    row.appendChild(label);
-    row.appendChild(btns);
-    backupsContainer.appendChild(row);
-  });
 }
 
 
@@ -144,19 +66,6 @@ function createEditableCell(text) {
 
 
 // ======================
-// SETTINGS WINDOW
-// ======================
-
-function initSettingsWindow() {
-  settingsBtn.onclick = () => settingsWindow.classList.remove("hidden");
-
-  settingsWindow.onclick = (e) => {
-    if (e.target === settingsWindow) settingsWindow.classList.add("hidden");
-  };
-}
-
-
-// ======================
 // TABS
 // ======================
 
@@ -165,7 +74,6 @@ function initTabs() {
     btn.onclick = () => {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-
       document.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
 
@@ -209,11 +117,11 @@ function createFolderHeader(folder) {
 
   const toggle = document.createElement("input");
   toggle.type    = "checkbox";
-  toggle.checked = galleryConfig[folder]?.enabled ?? true;
+  toggle.checked = window.galleryConfig[folder]?.enabled ?? true;
   toggle.onchange = () => {
-    galleryConfig[folder] = galleryConfig[folder] || {};
-    galleryConfig[folder].enabled = toggle.checked;
-    saveGalleryConfig();
+    window.galleryConfig[folder] = window.galleryConfig[folder] || {};
+    window.galleryConfig[folder].enabled = toggle.checked;
+    window.saveGalleryConfig();
   };
 
   const label = document.createElement("span");
@@ -231,16 +139,15 @@ function createImagesContainer(folder, images) {
   container.style.marginLeft = "15px";
 
   images.forEach(img => {
-    const row = createDiv("settings-item");
-
+    const row    = createDiv("settings-item");
     const toggle = document.createElement("input");
     toggle.type    = "checkbox";
-    toggle.checked = galleryConfig[folder]?.images?.[img] ?? true;
+    toggle.checked = window.galleryConfig[folder]?.images?.[img] ?? true;
     toggle.onchange = () => {
-      galleryConfig[folder] = galleryConfig[folder] || {};
-      galleryConfig[folder].images = galleryConfig[folder].images || {};
-      galleryConfig[folder].images[img] = toggle.checked;
-      saveGalleryConfig();
+      window.galleryConfig[folder] = window.galleryConfig[folder] || {};
+      window.galleryConfig[folder].images = window.galleryConfig[folder].images || {};
+      window.galleryConfig[folder].images[img] = toggle.checked;
+      window.saveGalleryConfig();
     };
 
     const label = document.createElement("label");
@@ -256,41 +163,20 @@ function createImagesContainer(folder, images) {
 
 
 // ======================
-// GALLERY UTIL
-// ======================
-
-function getEnabledImages() {
-  const result = [];
-
-  Object.entries(GALLERY_STRUCTURE).forEach(([folder, images]) => {
-    if (!(galleryConfig[folder]?.enabled ?? true)) return;
-
-    images.forEach(img => {
-      if (galleryConfig[folder]?.images?.[img] ?? true) result.push(img);
-    });
-  });
-
-  return result;
-}
-
-
-// ======================
 // LINK EDITOR
 // ======================
 
 function buildLinkEditor() {
   linkEditorEl.innerHTML = "<h2>Links</h2>";
 
-  linksConfig.forEach((category, catIdx) => {
+  window.linksConfig.forEach((category, catIdx) => {
     const categoryDiv = createDiv("category-foldout");
     const header      = createCategoryHeader(category.name, catIdx);
     const content     = createCategoryContent(category, catIdx);
     const arrow       = header.querySelector(".category-arrow");
 
     header.onclick = (e) => {
-      // don't toggle when clicking the delete button
       if (e.target.closest(".category-delete")) return;
-
       const isOpen = content.style.display === "block";
       content.style.display = isOpen ? "none" : "block";
       arrow.textContent = isOpen ? "▼ " : "▲ ";
@@ -318,8 +204,8 @@ function createCategoryHeader(name, catIdx) {
 
   const deleteBtn = createButton("✕", () => {
     if (!confirm(`Delete category "${name}" and all its links?`)) return;
-    linksConfig.splice(catIdx, 1);
-    hasUnsavedEdits = true;
+    window.linksConfig.splice(catIdx, 1);
+    window.hasUnsavedEdits = true;
     buildLinkEditor();
   });
   deleteBtn.className = "category-delete";
@@ -334,10 +220,10 @@ function createCategoryHeader(name, catIdx) {
     e.stopPropagation();
 
     const { categoryIndex: fromIdx, linkIndex: fromLinkIdx, link: draggedLink } = JSON.parse(e.dataTransfer.getData("text/plain"));
-    linksConfig[fromIdx].links.splice(fromLinkIdx, 1);
-    linksConfig[catIdx].links.unshift(draggedLink);
+    window.linksConfig[fromIdx].links.splice(fromLinkIdx, 1);
+    window.linksConfig[catIdx].links.unshift(draggedLink);
 
-    if (!hasUnsavedEdits) saveLinksConfig();
+    if (!window.hasUnsavedEdits) window.saveLinksConfig();
     buildLinkEditor();
   };
 
@@ -352,18 +238,16 @@ function createCategoryContent(category, catIdx) {
   category.links.forEach((link, linkIdx) => {
     content.appendChild(createLinkRow(link, linkIdx, catIdx, content));
   });
-
   content.appendChild(createAddLinkUI(category));
 
   content.ondragover = (e) => e.preventDefault();
   content.ondrop = (e) => {
     e.preventDefault();
-
     const { categoryIndex: fromIdx, linkIndex: fromLinkIdx, link: draggedLink } = JSON.parse(e.dataTransfer.getData("text/plain"));
-    linksConfig[fromIdx].links.splice(fromLinkIdx, 1);
-    linksConfig[catIdx].links.push(draggedLink);
+    window.linksConfig[fromIdx].links.splice(fromLinkIdx, 1);
+    window.linksConfig[catIdx].links.push(draggedLink);
 
-    if (!hasUnsavedEdits) saveLinksConfig();
+    if (!window.hasUnsavedEdits) window.saveLinksConfig();
     buildLinkEditor();
   };
 
@@ -377,55 +261,42 @@ function createCategoryContent(category, catIdx) {
 
 function applyTint(el, color) {
   if (!color || color === "#000000") return;
-
   const hoverColor = adjustColor(color);
-  el.addEventListener("mouseenter", () => {
-    el.style.background = hoverColor;
-    el.style.border = `1px solid ${color}`;
-  });
-  el.addEventListener("mouseleave", () => {
-    el.style.background = "";
-    el.style.border = "";
-  });
+  el.addEventListener("mouseenter", () => { el.style.background = hoverColor; el.style.border = `1px solid ${color}`; });
+  el.addEventListener("mouseleave", () => { el.style.background = ""; el.style.border = ""; });
 }
 
 function createLinkRow(link, linkIndex, categoryIndex, parentContent) {
   const [name, url, color, , options = {}] = link;
-
   const row = createDiv("link-row settings-item");
 
-  // Drag handle
   const dragHandle = createDiv("drag-handle");
   const dragIcon   = document.createElement("img");
   dragIcon.src = "assets/dragable.png";
   dragHandle.appendChild(dragIcon);
 
-  // Name
   const nameCell = createEditableCell(name);
-  nameCell.oninput = () => { link[0] = nameCell.textContent.trim(); hasUnsavedEdits = true; };
+  nameCell.oninput = () => { link[0] = nameCell.textContent.trim(); window.hasUnsavedEdits = true; };
 
-  // URL — normalize on blur
   const urlCell = createEditableCell(url);
-  urlCell.oninput = () => { link[1] = urlCell.textContent.trim(); hasUnsavedEdits = true; };
+  urlCell.oninput = () => { link[1] = urlCell.textContent.trim(); window.hasUnsavedEdits = true; };
   urlCell.onblur  = () => {
-    const normalized = normalizeUrl(urlCell.textContent.trim());
+    const normalized = window.normalizeUrl(urlCell.textContent.trim());
     if (normalized !== urlCell.textContent.trim()) {
       urlCell.textContent = normalized;
       link[1] = normalized;
-      hasUnsavedEdits = true;
+      window.hasUnsavedEdits = true;
     }
   };
 
-  // Color picker
   const colorCell  = document.createElement("div");
   colorCell.className = "color-cell";
   const colorInput = document.createElement("input");
   colorInput.type  = "color";
   colorInput.value = color || "#000000";
-  colorInput.oninput = () => { link[2] = colorInput.value; applyTint(row, colorInput.value); hasUnsavedEdits = true; };
+  colorInput.oninput = () => { link[2] = colorInput.value; applyTint(row, colorInput.value); window.hasUnsavedEdits = true; };
   colorCell.appendChild(colorInput);
 
-  // Options (browser/profile or app)
   const settingsCell = createEditableCell(
     options.app
       ? `app: ${options.app}${options.args ? " | " + options.args : ""}`
@@ -436,7 +307,6 @@ function createLinkRow(link, linkIndex, categoryIndex, parentContent) {
     link[4] = link[4] || {};
     const opts = link[4];
     delete opts.browser; delete opts.profile; delete opts.app; delete opts.args;
-
     if (text.startsWith("app:")) {
       const parts = text.replace("app:", "").split("|").map(s => s.trim());
       opts.app = parts[0];
@@ -446,14 +316,13 @@ function createLinkRow(link, linkIndex, categoryIndex, parentContent) {
       if (parts[0]) opts.browser = parts[0];
       if (parts[1]) opts.profile = parts[1];
     }
-    hasUnsavedEdits = true;
+    window.hasUnsavedEdits = true;
   };
 
-  // Delete
   const actions = createDiv();
   actions.appendChild(createButton("✕", () => {
-    linksConfig[categoryIndex].links.splice(linkIndex, 1);
-    hasUnsavedEdits = true;
+    window.linksConfig[categoryIndex].links.splice(linkIndex, 1);
+    window.hasUnsavedEdits = true;
     parentContent.removeChild(row);
   }));
 
@@ -466,7 +335,6 @@ function createLinkRow(link, linkIndex, categoryIndex, parentContent) {
 
   enableDragAndDrop(dragHandle, row, link, linkIndex, categoryIndex);
   applyTint(row, color);
-
   return row;
 }
 
@@ -487,21 +355,16 @@ function enableDragAndDrop(handle, row, link, linkIndex, categoryIndex) {
 
   row.ondrop = (e) => {
     e.preventDefault();
-    e.stopPropagation(); // prevent bubble to category content's ondrop
+    e.stopPropagation();
 
     const { categoryIndex: fromIdx, linkIndex: fromLinkIdx, link: draggedLink } = JSON.parse(e.dataTransfer.getData("text/plain"));
+    window.linksConfig[fromIdx].links.splice(fromLinkIdx, 1);
 
-    // remove from source
-    linksConfig[fromIdx].links.splice(fromLinkIdx, 1);
-
-    // insert before this row's current position
-    // linkIndex may have shifted if source and target are in same category and source was before target
     const adjustedIdx = (fromIdx === categoryIndex && fromLinkIdx < linkIndex)
-      ? linkIndex - 1
-      : linkIndex;
-    linksConfig[categoryIndex].links.splice(adjustedIdx, 0, draggedLink);
+      ? linkIndex - 1 : linkIndex;
+    window.linksConfig[categoryIndex].links.splice(adjustedIdx, 0, draggedLink);
 
-    if (!hasUnsavedEdits) saveLinksConfig();
+    if (!window.hasUnsavedEdits) window.saveLinksConfig();
     buildLinkEditor();
   };
 }
@@ -520,8 +383,8 @@ function createAddLinkUI(category) {
   container.appendChild(urlInput);
   container.appendChild(createButton("➕", () => {
     if (!nameInput.value || !urlInput.value) return;
-    category.links.push([nameInput.value, normalizeUrl(urlInput.value)]);
-    hasUnsavedEdits = true;
+    category.links.push([nameInput.value, window.normalizeUrl(urlInput.value)]);
+    window.hasUnsavedEdits = true;
     buildLinkEditor();
   }));
 
@@ -535,8 +398,8 @@ function createAddCategoryUI() {
   container.appendChild(input);
   container.appendChild(createButton("Add Category", () => {
     if (!input.value) return;
-    linksConfig.push({ name: input.value, links: [] });
-    hasUnsavedEdits = true;
+    window.linksConfig.push({ name: input.value, links: [] });
+    window.hasUnsavedEdits = true;
     buildLinkEditor();
   }));
 
@@ -551,8 +414,9 @@ function createAddCategoryUI() {
 function initSaveButtons() {
   document.getElementById("saveLinksBtn").onclick = () => {
     saveBackup();
-    hasUnsavedEdits = false;
-    saveLinksConfig();
+    window.hasUnsavedEdits = false;
+    window.hasPushedThisSession = false; // ensure next unload triggers push
+    window.saveLinksConfig();
     location.reload();
   };
 
@@ -565,149 +429,172 @@ function initSaveButtons() {
 
 
 // ======================
-// SYNC
+// BACKUPS TAB
 // ======================
 
-function getSyncConfig() {
-  return JSON.parse(localStorage.getItem("syncConfig") || "{}");
-}
+function buildBackupsTab() {
+  backupsContainer.innerHTML = "<h2>Backups</h2>";
+  const backups = JSON.parse(localStorage.getItem("backups") || "[]");
 
-function saveSyncConfig(cfg) {
-  localStorage.setItem("syncConfig", JSON.stringify(cfg));
-}
-
-const RESPONSE_PORT = 19420;
-
-// Trigger a phome:// action and poll localhost for the response.
-function phomeRequest(params) {
-  const query = new URLSearchParams(params).toString();
-  window.location.href = `phome://${query}`;
-
-  // Poll http://127.0.0.1:RESPONSE_PORT until Python's one-shot server responds.
-  return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 5000; // 5s timeout
-    const interval = 150; // poll every 150ms
-
-    function poll() {
-      if (Date.now() > deadline) {
-        reject(new Error("Sync timed out — is home_helper running?"));
-        return;
-      }
-      fetch(`http://127.0.0.1:${RESPONSE_PORT}`, { cache: "no-store" })
-        .then(r => r.json())
-        .then(resolve)
-        .catch(() => setTimeout(poll, interval));
-    }
-
-    setTimeout(poll, 500); // give Python a moment to start the server
-  });
-}
-
-async function syncPush() {
-  const { workerUrl, secret } = getSyncConfig();
-  if (!workerUrl || !secret) throw new Error("Sync not configured.");
-
-  const links = encodeURIComponent(JSON.stringify(linksConfig));
-  const notes = encodeURIComponent(localStorage.getItem("notes") || "");
-
-  const result = await phomeRequest({
-    action: "sync_push",
-    worker_url: workerUrl,
-    secret,
-    links,
-    notes
-  });
-
-  if (!result.ok) throw new Error(result.error || "Push failed.");
-}
-
-async function syncPull() {
-  const { workerUrl, secret } = getSyncConfig();
-  if (!workerUrl || !secret) throw new Error("Sync not configured.");
-
-  const result = await phomeRequest({
-    action: "sync_pull",
-    worker_url: workerUrl,
-    secret
-  });
-
-  if (!result.ok) throw new Error(result.error || "Pull failed.");
-
-  if (result.links) {
-    localStorage.setItem("linksConfig", result.links);
+  if (!backups.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No backups yet. Backups are created each time you save links.";
+    empty.style.color = "var(--muted)";
+    backupsContainer.appendChild(empty);
+    return;
   }
-  if (result.notes !== undefined) {
-    localStorage.setItem("notes", result.notes);
-    const pad = document.getElementById("scratchpad");
-    if (pad) pad.value = result.notes;
-  }
+
+  backups.forEach((backup, i) => {
+    const row = createDiv("settings-item");
+    row.style.justifyContent = "space-between";
+
+    const label = document.createElement("span");
+    const date  = new Date(backup.timestamp);
+    label.textContent = `${date.toLocaleDateString()} ${date.toLocaleTimeString()} — ${backup.links.length} categories, ${backup.links.reduce((n, c) => n + c.links.length, 0)} links`;
+
+    const btns = createDiv();
+    btns.style.cssText = "display:flex; gap:6px;";
+
+    btns.appendChild(createButton("Restore Links", () => {
+      if (!confirm("Restore links from this backup? Unsaved changes will be lost.")) return;
+      localStorage.setItem("linksConfig", JSON.stringify(backup.links));
+      location.reload();
+    }));
+
+    btns.appendChild(createButton("Restore Notes", () => {
+      if (!confirm("Restore notes from this backup? Current notes will be overwritten.")) return;
+      localStorage.setItem("notes", backup.notes);
+      document.getElementById("scratchpad").value = backup.notes;
+    }));
+
+    btns.appendChild(createButton("✕", () => {
+      const all = JSON.parse(localStorage.getItem("backups") || "[]");
+      all.splice(i, 1);
+      localStorage.setItem("backups", JSON.stringify(all));
+      buildBackupsTab();
+    }));
+
+    row.appendChild(label);
+    row.appendChild(btns);
+    backupsContainer.appendChild(row);
+  });
 }
+
+
+// ======================
+// SYNC TAB
+// ======================
 
 function buildSyncTab() {
   syncContainer.innerHTML = "<h2>Sync</h2>";
+  const cfg = window.getSyncConfig();
 
-  const cfg = getSyncConfig();
+  const make = (tag, text, style) => {
+    const el = document.createElement(tag);
+    if (text)  el.textContent = text;
+    if (style) el.style.cssText = style;
+    return el;
+  };
 
-  // Config fields
-  const urlLabel = document.createElement("p");
-  urlLabel.textContent = "Worker URL";
-  urlLabel.style.margin = "8px 0 2px";
-
-  const urlInput = createInput("https://phome-sync.yourname.workers.dev", "100%");
-  urlInput.value = cfg.workerUrl || "";
+  const urlLabel    = make("p", "Worker URL", "margin: 8px 0 2px");
+  const urlInput    = createInput("https://phome-sync.yourname.workers.dev");
+  urlInput.value    = cfg.workerUrl || "";
   urlInput.style.width = "400px";
 
-  const secretLabel = document.createElement("p");
-  secretLabel.textContent = "Secret";
-  secretLabel.style.margin = "8px 0 2px";
-
-  const secretInput = createInput("your-secret-value", "100%");
-  secretInput.type  = "password";
-  secretInput.value = cfg.secret || "";
+  const secretLabel    = make("p", "Secret", "margin: 8px 0 2px");
+  const secretInput    = createInput("your-secret-value");
+  secretInput.type     = "password";
+  secretInput.value    = cfg.secret || "";
   secretInput.style.width = "400px";
 
+  // Auto sync toggle
+  const autoSyncRow = createDiv();
+  autoSyncRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:12px;";
+  const autoSyncToggle = document.createElement("input");
+  autoSyncToggle.type    = "checkbox";
+  autoSyncToggle.checked = cfg.autoSync !== false;
+  const autoSyncLabel = document.createElement("label");
+  autoSyncLabel.textContent = "Enable auto sync";
+  autoSyncRow.appendChild(autoSyncToggle);
+  autoSyncRow.appendChild(autoSyncLabel);
+
+  // Interval config
+  const intervalRow = createDiv();
+  intervalRow.style.cssText = "display:flex; align-items:center; gap:16px; margin-top:10px; flex-wrap:wrap;";
+
+  const pushIntervalLabel = document.createElement("label");
+  pushIntervalLabel.textContent = "Auto push every";
+  pushIntervalLabel.style.cssText = "display:flex; align-items:center; gap:6px;";
+  const pushIntervalInput = createInput("5", "50px");
+  pushIntervalInput.type  = "number";
+  pushIntervalInput.min   = "1";
+  pushIntervalInput.value = cfg.pushIntervalMins ?? 5;
+  const pushIntervalUnit  = document.createTextNode(" min");
+  pushIntervalLabel.appendChild(pushIntervalInput);
+  pushIntervalLabel.appendChild(pushIntervalUnit);
+
+  const pullIntervalLabel = document.createElement("label");
+  pullIntervalLabel.textContent = "Auto pull every";
+  pullIntervalLabel.style.cssText = "display:flex; align-items:center; gap:6px;";
+  const pullIntervalInput = createInput("2", "50px");
+  pullIntervalInput.type  = "number";
+  pullIntervalInput.min   = "1";
+  pullIntervalInput.value = cfg.pullIntervalHrs ?? 2;
+  const pullIntervalUnit  = document.createTextNode(" hr");
+  pullIntervalLabel.appendChild(pullIntervalInput);
+  pullIntervalLabel.appendChild(pullIntervalUnit);
+
+  intervalRow.appendChild(pushIntervalLabel);
+  intervalRow.appendChild(pullIntervalLabel);
+
+  const statusEl = make("p", "Not synced yet.", "color:var(--muted); font-size:12px; margin-top:10px;");
+
+  const lastPushed = parseInt(localStorage.getItem("lastPushed") || "0", 10);
+  const lastPulled = parseInt(localStorage.getItem("lastPulled") || "0", 10);
+  if (lastPushed) statusEl.textContent = `Last pushed: ${new Date(lastPushed).toLocaleString()}`;
+  if (lastPulled) statusEl.textContent += `  |  Last pulled: ${new Date(lastPulled).toLocaleString()}`;
+
   const saveConfigBtn = createButton("Save Config", () => {
-    saveSyncConfig({ workerUrl: urlInput.value.trim(), secret: secretInput.value.trim() });
+    window.saveSyncConfig({
+      workerUrl:        urlInput.value.trim(),
+      secret:           secretInput.value.trim(),
+      autoSync:         autoSyncToggle.checked,
+      pushIntervalMins: parseFloat(pushIntervalInput.value) || 5,
+      pullIntervalHrs:  parseFloat(pullIntervalInput.value) || 2,
+    });
     statusEl.textContent = "Config saved.";
   });
 
-  // Action buttons
   const btnRow = createDiv();
   btnRow.style.cssText = "display:flex; gap:8px; margin-top:16px;";
 
-  const pushBtn = createButton("⬆ Push to Cloud", async () => {
+  btnRow.appendChild(createButton("⬆ Push to Cloud", async () => {
     statusEl.textContent = "Pushing...";
     try {
-      await syncPush();
+      await window.syncPush();
       statusEl.textContent = `Pushed at ${new Date().toLocaleTimeString()}`;
     } catch(e) {
       statusEl.textContent = "Push failed: " + e.message;
     }
-  });
+  }));
 
-  const pullBtn = createButton("⬇ Pull from Cloud", async () => {
+  btnRow.appendChild(createButton("⬇ Pull from Cloud", async () => {
     if (!confirm("Pull will overwrite your local links and notes. Continue?")) return;
     statusEl.textContent = "Pulling...";
     try {
-      await syncPull();
+      await window.syncPull();
       statusEl.textContent = `Pulled at ${new Date().toLocaleTimeString()} — reload to see link changes.`;
     } catch(e) {
       statusEl.textContent = "Pull failed: " + e.message;
     }
-  });
-
-  btnRow.appendChild(pushBtn);
-  btnRow.appendChild(pullBtn);
-
-  // Status line
-  const statusEl = document.createElement("p");
-  statusEl.style.cssText = "color: var(--muted); font-size: 12px; margin-top: 10px;";
-  statusEl.textContent = "Not synced yet.";
+  }));
 
   syncContainer.appendChild(urlLabel);
   syncContainer.appendChild(urlInput);
   syncContainer.appendChild(secretLabel);
   syncContainer.appendChild(secretInput);
+  syncContainer.appendChild(autoSyncRow);
+  syncContainer.appendChild(intervalRow);
   syncContainer.appendChild(saveConfigBtn);
   syncContainer.appendChild(btnRow);
   syncContainer.appendChild(statusEl);
@@ -715,15 +602,13 @@ function buildSyncTab() {
 
 
 // ======================
-// INIT
+// INIT (called once lazily from index.html)
 // ======================
 
-function init() {
-  initSettingsWindow();
+function initSettings() {
+  settingsWindow.classList.remove("hidden");
   initTabs();
   initSaveButtons();
   buildGallerySettings();
   buildLinkEditor();
 }
-
-init();

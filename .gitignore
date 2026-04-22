@@ -1,6 +1,6 @@
 gallery/*
 specification.md
-specificationmk2.md
+specificationmk*.md
 data.js.backup
 js/galleryphotos.local.js
 __pycache__/
