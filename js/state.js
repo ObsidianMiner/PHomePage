@@ -7,6 +7,7 @@
 // Settings mutates it directly; sync reads it on push.
 window.getLinksConfig = function() {
   try {
+    const saved = localStorage.getItem("linksConfig");
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed) return parsed;
