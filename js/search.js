@@ -1,9 +1,6 @@
 const search      = document.getElementById("searchBar");
 const suggestions = document.getElementById("searchSuggestions");
 
-const allLinks = window.groups.flatMap(g =>
-  g.links.map(([name, url, , , options]) => ({ name, url, options }))
-);
 
 let selectedIndex = -1;
 let currentItems  = [];
@@ -55,18 +52,35 @@ async function buildSuggestions(q) {
   }
 
   // --- Link matches ---
+  let savedGroups;
+  try {
+    savedGroups = JSON.parse(localStorage.getItem("linksConfig"));
+  } catch (e) {
+    savedGroups = null;
+  }
+  const activeGroups = savedGroups || window.groups;
+
+  const allLinks = (activeGroups || []).flatMap(g =>
+    (g.links || []).map(([name, url, , , options]) => ({ name, url, options }))
+  );
+
   const matches = allLinks
     .filter(l => l.name.toLowerCase().includes(q))
     .slice(0, 5);
 
+  const sMap = window.shortcutMap || (typeof shortcutMap !== "undefined" ? shortcutMap : {});
+  const ssMap = window.shiftShortcutMap || (typeof shiftShortcutMap !== "undefined" ? shiftShortcutMap : {});
+  const doOpenLink = window.openLink || (typeof openLink !== "undefined" ? openLink : (url, opts) => { window.location.href = url; });
+
   matches.forEach(m => {
     let title = "Open " + m.name;
-    if (shortcutMap[m.name[0]?.toUpperCase()])      title += ` (Ctrl+${m.name[0].toUpperCase()})`;
-    if (shiftShortcutMap[m.name[0]?.toUpperCase()]) title += ` (Shift+Ctrl+${m.name[0].toUpperCase()})`;
+    const firstLetter = m.name[0]?.toUpperCase();
+    if (firstLetter && sMap[firstLetter])   title += ` (Ctrl+${firstLetter})`;
+    if (firstLetter && ssMap[firstLetter]) title += ` (Shift+Ctrl+${firstLetter})`;
 
     currentItems.push({
       label:  title,
-      action: (shiftHeld = false) => openLink(m.url, m.options)
+      action: (shiftHeld = false) => doOpenLink(m.url, m.options)
     });
   });
 

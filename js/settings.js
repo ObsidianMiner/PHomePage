@@ -169,6 +169,16 @@ function createImagesContainer(folder, images) {
 function buildLinkEditor() {
   linkEditorEl.innerHTML = "<h2>Links</h2>";
 
+  if (!window.linksConfig) {
+    let saved;
+    try {
+      saved = JSON.parse(localStorage.getItem("linksConfig"));
+    } catch(e) {
+      saved = null;
+    }
+    window.linksConfig = structuredClone(saved || window.groups);
+  }
+
   window.linksConfig.forEach((category, catIdx) => {
     const categoryDiv = createDiv("category-foldout");
     const header      = createCategoryHeader(category.name, catIdx);

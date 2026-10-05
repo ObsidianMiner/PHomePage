@@ -72,7 +72,8 @@ function buildDock()
     console.warn("Could not load saved groups.");
   }
 
-  const activeGroups = savedGroups || groups;
+  const activeGroups = savedGroups || window.groups;
+  window.activeGroups = activeGroups;
 
   // then use activeGroups instead of groups
   const sortedGroups = [...activeGroups].sort((a, b) => b.links.length - a.links.length);
@@ -189,6 +190,10 @@ function buildDock()
       }
     }
   });
+  window.openLink = openLink;
+  window.shortcutMap = shortcutMap;
+  window.shiftShortcutMap = shiftShortcutMap;
+  window.buildDock = buildDock;
 }
 
 try {

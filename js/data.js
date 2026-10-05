@@ -89,3 +89,4 @@ window.groups = [
     ]
   }
 ];
+var groups = window.groups;

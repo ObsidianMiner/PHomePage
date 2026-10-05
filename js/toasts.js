@@ -2,7 +2,7 @@
 // ERROR TOAST SYSTEM
 // ======================
 
-const toastContainer = document.getElementById("errorToastContainer");
+const toastContainer = document.getElementById("toastContainer");
 
 function showToast(message, is_error) {
   const toast = document.createElement("div");
@@ -24,6 +24,13 @@ function showToast(message, is_error) {
     setTimeout(() => toast.remove(), 300);
   }, 10000);
 }
+
+function showErrorToast(message) {
+  showToast(message, true);
+}
+
+window.showToast = showToast;
+window.showErrorToast = showErrorToast;
 
 // ======================
 // GLOBAL ERROR HOOKS

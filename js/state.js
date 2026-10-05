@@ -5,9 +5,19 @@
 
 // linksConfig is the authoritative in-memory link list.
 // Settings mutates it directly; sync reads it on push.
-window.linksConfig = structuredClone(
-  JSON.parse(localStorage.getItem("linksConfig") || JSON.stringify(groups))
-);
+window.getLinksConfig = function() {
+  try {
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed) return parsed;
+    }
+  } catch (e) {
+    console.warn("Could not load saved linksConfig:", e);
+  }
+  return window.groups;
+};
+
+window.linksConfig = structuredClone(window.getLinksConfig());
 
 // Set to true whenever the user edits links without saving.
 // Checked by the unload auto-push to decide whether a push is needed.

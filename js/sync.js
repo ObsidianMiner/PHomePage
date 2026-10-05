@@ -85,7 +85,7 @@ window.syncPush = async function() {
   // Read from localStorage, not in-memory linksConfig, so we always
   // push the latest committed data even if another tab saved more recently.
   const links = localStorage.getItem("linksConfig")
-    || JSON.stringify(window.linksConfig);
+    || JSON.stringify(window.linksConfig || window.groups);
   const notes = localStorage.getItem("notes") || "";
 
   const result = await window.phomeRequest({
