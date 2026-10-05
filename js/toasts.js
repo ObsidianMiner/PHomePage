@@ -4,9 +4,9 @@
 
 const toastContainer = document.getElementById("errorToastContainer");
 
-function showErrorToast(message) {
+function showToast(message, is_error) {
   const toast = document.createElement("div");
-  toast.className = "error-toast collapsed";
+  toast.className = is_error ? "error-toast collapsed" : "toast collapsed";
   toast.textContent = message;
 
   let expanded = false;
@@ -25,7 +25,6 @@ function showErrorToast(message) {
   }, 10000);
 }
 
-
 // ======================
 // GLOBAL ERROR HOOKS
 // ======================
@@ -37,5 +36,5 @@ window.onerror = function (msg, src, line, col, err) {
 
 // Promise errors
 window.onunhandledrejection = function (e) {
-  showErrorToast(`Promise error: ${e.reason}`);
+  showToast(`Promise error: ${e.reason}`, true);
 };

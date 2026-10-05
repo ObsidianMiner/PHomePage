@@ -40,6 +40,7 @@ async function buildSuggestions(q) {
         copyValue: math.result,
         action:    () => {
           navigator.clipboard?.writeText(math.result);
+          showToast("Copied to clipboard", false);
         }
       };
       currentItems.push(mathItem);
