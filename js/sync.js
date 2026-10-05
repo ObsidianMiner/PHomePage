@@ -49,16 +49,16 @@ function isAutoSyncEnabled() {
 // Triggers a phome:// protocol call and polls localhost for the response.
 // ======================
 
-window.phomeRequest = function(params) {
+window.phomeRequest = function(params, timeoutMs = 15000) {
   const query = new URLSearchParams(params).toString();
   window.location.href = `phome://${query}`;
 
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 15000;
+    const deadline = Date.now() + timeoutMs;
 
     function poll() {
       if (Date.now() > deadline) {
-        reject(new Error("Sync timed out — is home_helper running?"));
+        reject(new Error("Connection timed out. home_helper is likely not running or not setup to the right directory."));
         return;
       }
       fetch(`http://127.0.0.1:${RESPONSE_PORT}`, { cache: "no-store" })
@@ -67,7 +67,7 @@ window.phomeRequest = function(params) {
         .catch(() => setTimeout(poll, 300));
     }
 
-    setTimeout(poll, 500);
+    setTimeout(poll, 400);
   });
 };
 

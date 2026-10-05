@@ -107,9 +107,8 @@ def main():
             except Exception as e:
                 serve_response_once({"type": "sync", "action": "push", "ok": False, "error": str(e)})
             return
-        except e:
+        except Exception as e:
             print(e)
-            input()
 
     if action == "sync_pull":
         worker_url = get(args, "worker_url")
@@ -119,6 +118,37 @@ def main():
             serve_response_once({"type": "sync", "action": "pull", **result})
         except Exception as e:
             serve_response_once({"type": "sync", "action": "pull", "ok": False, "error": str(e)})
+        return
+
+    # -- Gallery Rebuild --
+    if action in ("refresh_gallery", "rebuild_gallery", "generate_gallery"):
+        try:
+            from py.generate_gallery import generate_gallery
+            res = generate_gallery()
+            serve_response_once({"type": "gallery", "action": "refresh", **res})
+        except Exception as e:
+            serve_response_once({"type": "gallery", "action": "refresh", "ok": False, "error": str(e)})
+        return
+
+    # -- Open Folder / Gallery Folder --
+    if action in ("open_gallery_folder", "open_folder"):
+        try:
+            import os
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            folder = get(args, "folder")
+            if folder:
+                target_folder = os.path.join(base_dir, "gallery", urllib.parse.unquote(folder))
+            else:
+                custom_path = get(args, "path")
+                if custom_path:
+                    target_folder = urllib.parse.unquote(custom_path)
+                else:
+                    target_folder = os.path.join(base_dir, "gallery")
+
+            open_folder(target_folder)
+            serve_response_once({"type": "folder", "action": "open", "ok": True, "path": target_folder})
+        except Exception as e:
+            serve_response_once({"type": "folder", "action": "open", "ok": False, "error": str(e)})
         return
 
 

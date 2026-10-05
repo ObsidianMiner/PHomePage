@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import urllib.parse
 
@@ -39,3 +40,17 @@ def open_app(path, args=None):
     if args:
         cmd.extend(args.split(" "))
     subprocess.Popen(cmd)
+
+
+def open_folder(path):
+    """Open folder in OS filesystem viewer (Explorer on Windows, xdg-open on Linux, open on macOS)."""
+    path = urllib.parse.unquote(str(path))
+    path = os.path.abspath(path)
+    os.makedirs(path, exist_ok=True)
+
+    if os.name == "nt":
+        os.startfile(path)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])

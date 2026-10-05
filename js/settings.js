@@ -14,6 +14,19 @@ const syncContainer     = document.getElementById("syncContainer");
 
 let openCategories = {};
 
+let openGalleryFolders = {};
+try {
+  openGalleryFolders = JSON.parse(localStorage.getItem("openGalleryFolders") || "{}");
+} catch (_) {
+  openGalleryFolders = {};
+}
+
+function saveOpenGalleryFolders() {
+  try {
+    localStorage.setItem("openGalleryFolders", JSON.stringify(openGalleryFolders));
+  } catch (_) {}
+}
+
 const MAX_BACKUPS = 10;
 
 
@@ -89,18 +102,131 @@ function initTabs() {
 // ======================
 
 function buildGallerySettings() {
-  gallerySettingsEl.innerHTML = "<h2>Gallery</h2>";
+  gallerySettingsEl.innerHTML = "";
 
-  Object.entries(GALLERY_STRUCTURE).forEach(([folder, images]) => {
+  const headerRow = createDiv("gallery-tab-header");
+  const title = document.createElement("h2");
+  title.textContent = "Gallery";
+  headerRow.appendChild(title);
+
+  const actions = createDiv("gallery-tab-actions");
+
+  const refreshBtn = document.createElement("button");
+  refreshBtn.id = "refreshGalleryBtn";
+  refreshBtn.className = "gallery-action-btn";
+  refreshBtn.title = "Rebuild and refresh gallery list from disk via Home Helper";
+  refreshBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> <span>Refresh</span>';
+
+  refreshBtn.onclick = async () => {
+    if (refreshBtn.disabled) return;
+    refreshBtn.disabled = true;
+    const icon = refreshBtn.querySelector("i");
+    const label = refreshBtn.querySelector("span");
+    if (icon) icon.classList.add("fa-spin");
+    if (label) label.textContent = "Refreshing...";
+
+    try {
+      if (typeof window.phomeRequest !== "function") {
+        throw new Error("phomeRequest is not available. Please ensure sync.js is loaded.");
+      }
+
+      const result = await window.phomeRequest({ action: "refresh_gallery" }, 7000);
+
+      if (result && result.ok) {
+        if (result.structure) {
+          window.GALLERY_STRUCTURE = result.structure;
+          if (typeof GALLERY_STRUCTURE !== "undefined") {
+            try { GALLERY_STRUCTURE = result.structure; } catch (_) {}
+          }
+        }
+        buildGallerySettings();
+        const total = result.total_images ?? 0;
+        const catCount = (result.categories || []).length;
+        window.showToast?.(`Gallery refreshed: ${total} images across ${catCount} categories.`);
+      } else {
+        const errMsg = result?.error || "Failed to rebuild gallery.";
+        window.showErrorToast?.(errMsg);
+      }
+    } catch (err) {
+      console.warn("Gallery refresh failed:", err);
+      if (typeof window.showHelperSetupModal === "function") {
+        window.showHelperSetupModal("Gallery Refresh", err.message);
+      } else {
+        window.showErrorToast?.("Home Helper connection failed: " + err.message);
+      }
+    } finally {
+      const activeBtn = document.getElementById("refreshGalleryBtn");
+      if (activeBtn) {
+        activeBtn.disabled = false;
+        const curIcon = activeBtn.querySelector("i");
+        const curLabel = activeBtn.querySelector("span");
+        if (curIcon) curIcon.classList.remove("fa-spin");
+        if (curLabel) curLabel.textContent = "Refresh";
+      }
+    }
+  };
+
+  actions.appendChild(refreshBtn);
+  headerRow.appendChild(actions);
+  gallerySettingsEl.appendChild(headerRow);
+
+  const structure = (typeof GALLERY_STRUCTURE !== "undefined" ? GALLERY_STRUCTURE : window.GALLERY_STRUCTURE) || {};
+  const entries = Object.entries(structure);
+
+  if (entries.length === 0) {
+    const emptyMsg = createDiv();
+    emptyMsg.style.padding = "20px";
+    emptyMsg.style.color = "#888";
+    emptyMsg.textContent = "No gallery images found. Ensure photos are placed in the gallery folder and click Refresh.";
+    gallerySettingsEl.appendChild(emptyMsg);
+    return;
+  }
+
+  entries.forEach(([folder, images]) => {
     const folderDiv       = createDiv("folder");
-    const header          = createFolderHeader(folder);
+    const isOpen          = openGalleryFolders[folder] ?? false;
+    const header          = createFolderHeader(folder, images.length, folderDiv, isOpen);
     const imagesContainer = createImagesContainer(folder, images);
-    const arrow           = header.querySelector("span");
+    const arrow           = header.querySelector(".folder-arrow");
+    let isLoaded          = false;
 
-    header.onclick = () => {
-      const isOpen = imagesContainer.style.display === "block";
-      imagesContainer.style.display = isOpen ? "none" : "block";
-      arrow.textContent = isOpen ? "▼ " : "▲ ";
+    if (!(window.galleryConfig[folder]?.enabled ?? true)) {
+      folderDiv.classList.add("folder-disabled");
+    }
+
+    if (isOpen) {
+      imagesContainer.style.display = "grid";
+      isLoaded = true;
+      imagesContainer.querySelectorAll("img[data-src]").forEach(img => {
+        img.src = img.dataset.src;
+        img.removeAttribute("data-src");
+      });
+    }
+
+    header.onclick = (e) => {
+      if (e.target.tagName === "INPUT") return;
+      const isCurrentlyOpen = imagesContainer.style.display === "grid";
+
+      if (isCurrentlyOpen) {
+        imagesContainer.style.display = "none";
+        arrow.textContent = "▼ ";
+        openGalleryFolders[folder] = false;
+        saveOpenGalleryFolders();
+      } else {
+        imagesContainer.style.display = "grid";
+        arrow.textContent = "▲ ";
+        openGalleryFolders[folder] = true;
+        saveOpenGalleryFolders();
+
+        // Lazy load images on first expand
+        if (!isLoaded) {
+          isLoaded = true;
+          imagesContainer.querySelectorAll("img[data-src]").forEach(img => {
+            img.src = img.dataset.src;
+            img.removeAttribute("data-src");
+          });
+        }
+      }
     };
 
     folderDiv.appendChild(header);
@@ -109,53 +235,129 @@ function buildGallerySettings() {
   });
 }
 
-function createFolderHeader(folder) {
+function createFolderHeader(folder, count, folderDiv, isOpen = false) {
   const header = createDiv("folder-header");
 
   const arrow = document.createElement("span");
-  arrow.textContent = "▼ ";
+  arrow.className = "folder-arrow";
+  arrow.textContent = isOpen ? "▲ " : "▼ ";
 
   const toggle = document.createElement("input");
-  toggle.type    = "checkbox";
-  toggle.checked = window.galleryConfig[folder]?.enabled ?? true;
-  toggle.onchange = () => {
+  toggle.type      = "checkbox";
+  toggle.className = "folder-toggle";
+  toggle.checked   = window.galleryConfig[folder]?.enabled ?? true;
+  toggle.title     = "Enable or disable this folder in the background rotation";
+  toggle.onchange  = () => {
     window.galleryConfig[folder] = window.galleryConfig[folder] || {};
     window.galleryConfig[folder].enabled = toggle.checked;
     window.saveGalleryConfig();
+    if (folderDiv) {
+      folderDiv.classList.toggle("folder-disabled", !toggle.checked);
+    }
   };
+  toggle.onclick = (e) => e.stopPropagation();
 
   const label = document.createElement("span");
+  label.className = "folder-label";
   label.textContent = folder;
+
+  const countBadge = document.createElement("span");
+  countBadge.className = "folder-count";
+  countBadge.textContent = `(${count})`;
 
   header.appendChild(arrow);
   header.appendChild(toggle);
   header.appendChild(label);
+  header.appendChild(countBadge);
   return header;
 }
 
 function createImagesContainer(folder, images) {
-  const container = createDiv();
-  container.style.display    = "none";
-  container.style.marginLeft = "15px";
+  const container = createDiv("gallery-images-grid");
+  container.style.display = "none";
+
+  if (!images || images.length === 0) {
+    const emptyNotice = createDiv();
+    emptyNotice.style.padding = "10px";
+    emptyNotice.style.color = "#777";
+    emptyNotice.style.fontSize = "12px";
+    emptyNotice.textContent = "No images in this folder.";
+    container.appendChild(emptyNotice);
+    return container;
+  }
 
   images.forEach(img => {
-    const row    = createDiv("settings-item");
+    const isEnabled = window.galleryConfig[folder]?.images?.[img] ?? true;
+    const card = createDiv("gallery-card" + (isEnabled ? "" : " disabled"));
+
+    const thumbWrap = createDiv("gallery-thumb-wrap");
+
+    // Placeholder icon while image loads or if broken
+    const placeholder = document.createElement("i");
+    placeholder.className = "fa-regular fa-image gallery-thumb-placeholder";
+    thumbWrap.appendChild(placeholder);
+
+    // Thumbnail img - deferred src for lazy loading
+    const imgEl = document.createElement("img");
+    const fileName = img.split("/").pop();
+    imgEl.className = "gallery-thumb";
+    imgEl.dataset.src = img;
+    imgEl.alt = fileName;
+    imgEl.loading = "lazy";
+    imgEl.onload = () => {
+      placeholder.style.display = "none";
+      imgEl.classList.add("loaded");
+    };
+    imgEl.onerror = () => {
+      imgEl.style.display = "none";
+    };
+    thumbWrap.appendChild(imgEl);
+
+    // Direct open link (top right overlay on hover)
+    const openLink = document.createElement("a");
+    openLink.className = "gallery-card-action gallery-thumb-open";
+    openLink.href = img;
+    openLink.target = "_blank";
+    openLink.rel = "noreferrer";
+    openLink.title = "Open image in new tab";
+    openLink.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i>';
+    openLink.onclick = (e) => e.stopPropagation();
+    thumbWrap.appendChild(openLink);
+
+    // Footer info row
+    const info = createDiv("gallery-card-info");
     const toggle = document.createElement("input");
     toggle.type    = "checkbox";
-    toggle.checked = window.galleryConfig[folder]?.images?.[img] ?? true;
+    toggle.checked = isEnabled;
+    toggle.title   = "Enable or disable this image";
+
+    const label = document.createElement("span");
+    label.className = "gallery-card-label";
+    label.textContent = fileName;
+    label.title = fileName;
+
     toggle.onchange = () => {
       window.galleryConfig[folder] = window.galleryConfig[folder] || {};
       window.galleryConfig[folder].images = window.galleryConfig[folder].images || {};
       window.galleryConfig[folder].images[img] = toggle.checked;
       window.saveGalleryConfig();
+      card.classList.toggle("disabled", !toggle.checked);
     };
 
-    const label = document.createElement("label");
-    label.textContent = img.split("/").pop();
+    // Clicking anywhere on card toggles checkbox
+    card.onclick = (e) => {
+      if (e.target === toggle) return;
+      if (e.target.closest(".gallery-card-action")) return;
+      toggle.checked = !toggle.checked;
+      toggle.onchange();
+    };
 
-    row.appendChild(toggle);
-    row.appendChild(label);
-    container.appendChild(row);
+    info.appendChild(toggle);
+    info.appendChild(label);
+
+    card.appendChild(thumbWrap);
+    card.appendChild(info);
+    container.appendChild(card);
   });
 
   return container;
@@ -585,6 +787,9 @@ function buildSyncTab() {
       statusEl.textContent = `Pushed at ${new Date().toLocaleTimeString()}`;
     } catch(e) {
       statusEl.textContent = "Push failed: " + e.message;
+      if (e.message && (e.message.includes("home_helper") || e.message.includes("timed out"))) {
+        window.showHelperSetupModal?.("Cloud Sync", e.message);
+      }
     }
   }));
 
@@ -596,6 +801,9 @@ function buildSyncTab() {
       statusEl.textContent = `Pulled at ${new Date().toLocaleTimeString()} — reload to see link changes.`;
     } catch(e) {
       statusEl.textContent = "Pull failed: " + e.message;
+      if (e.message && (e.message.includes("home_helper") || e.message.includes("timed out"))) {
+        window.showHelperSetupModal?.("Cloud Sync", e.message);
+      }
     }
   }));
 
