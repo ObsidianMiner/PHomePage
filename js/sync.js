@@ -35,8 +35,8 @@ window.saveSyncConfig = function(cfg) {
 };
 
 function isSyncConfigured() {
-  const { workerUrl, secret } = window.getSyncConfig();
-  return !!(workerUrl && secret);
+  const { workerUrl, secret, username } = window.getSyncConfig();
+  return !!(workerUrl && secret && username);
 }
 
 function isAutoSyncEnabled() {
@@ -79,7 +79,7 @@ window.phomeRequest = function(params, timeoutMs = 15000) {
 // ======================
 
 window.syncPush = async function() {
-  const { workerUrl, secret } = window.getSyncConfig();
+  const { workerUrl, secret, username } = window.getSyncConfig();
   if (!workerUrl || !secret) throw new Error("Sync not configured.");
 
   // Read from localStorage, not in-memory linksConfig, so we always
@@ -92,6 +92,7 @@ window.syncPush = async function() {
     action:     "sync_push",
     worker_url: workerUrl,
     secret,
+    username,
     links:      encodeURIComponent(links),
     notes:      encodeURIComponent(notes)
   });
@@ -102,13 +103,14 @@ window.syncPush = async function() {
 };
 
 window.syncPull = async function() {
-  const { workerUrl, secret } = window.getSyncConfig();
+  const { workerUrl, secret, username } = window.getSyncConfig();
   if (!workerUrl || !secret) throw new Error("Sync not configured.");
 
   const result = await window.phomeRequest({
     action:     "sync_pull",
     worker_url: workerUrl,
-    secret
+    secret,
+    username
   });
 
   if (!result.ok) throw new Error(result.error || "Pull failed.");
@@ -182,3 +184,53 @@ async function autoPushTick() {
 
 // Delay first tick so page load settles before any push attempt
 setTimeout(autoPushTick, getPushIntervalMs());
+
+// ======================
+// ACCOUNT REGISTRATION
+// ======================
+
+window.syncRegister = async function(username) {
+  username = username.trim();
+
+  if (!username) {
+    throw new Error("Username is required.");
+  }
+
+  const cfg = window.getSyncConfig();
+  const workerUrl =
+    cfg.workerUrl ||
+    "https://phome-sync.obpickleman.workers.dev";
+
+  const result = await window.phomeRequest({
+    action: "sync_register",
+    worker_url: workerUrl,
+    username
+  });
+
+  console.log(result);
+
+  if (!result || !result.ok) {
+    throw new Error(
+      result?.error || "Unable to create sync account."
+    );
+  }
+
+  if (!result.username || !result.secret) {
+    throw new Error(
+      "The server returned an invalid account response."
+    );
+  }
+
+  // Save the newly-created credentials immediately.
+  window.saveSyncConfig({
+    ...cfg,
+    workerUrl,
+    username: result.username,
+    secret: result.secret
+  });
+
+  return {
+    username: result.username,
+    secret: result.secret
+  };
+};

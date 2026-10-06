@@ -430,3 +430,7 @@
 .link {
   transition: background 0.2s ease, border 0.2s ease;
 }
+
+.hidden {
+  display: none;
+}

@@ -708,10 +708,18 @@ function buildSyncTab() {
     return el;
   };
 
+
+
   const urlLabel    = make("p", "Worker URL", "margin: 8px 0 2px");
-  const urlInput    = createInput("https://phome-sync.yourname.workers.dev");
-  urlInput.value    = cfg.workerUrl || "";
+  const urlInput    = createInput("https://phome-sync.obpickleman.workers.dev");
+  urlInput.value    = cfg.workerUrl || "https://phome-sync.obpickleman.workers.dev";
   urlInput.style.width = "400px";
+
+  const usernameLabel    = make("p", "Username", "margin: 8px 0 2px");
+  const usernameInput    = createInput("your-username");
+  usernameInput.type     = "username";
+  usernameInput.value    = cfg.username || "";
+  usernameInput.style.width = "400px";
 
   const secretLabel    = make("p", "Secret", "margin: 8px 0 2px");
   const secretInput    = createInput("your-secret-value");
@@ -719,9 +727,21 @@ function buildSyncTab() {
   secretInput.value    = cfg.secret || "";
   secretInput.style.width = "400px";
 
+  const secretCopyButton = createButton("Copy to clipboard", async () => {
+    if(!secretInput.value)
+    {
+      showToast("No secret to copy.", false);
+    }
+    else
+    {
+      navigator.clipboard?.writeText(secretInput.value);
+      showToast("Secret copied to clipboard. Paste this on another device with the same username to authenticate.", false);
+    }
+  });
+
   // Auto sync toggle
   const autoSyncRow = createDiv();
-  autoSyncRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top:12px;";
+  autoSyncRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);";
   const autoSyncToggle = document.createElement("input");
   autoSyncToggle.type    = "checkbox";
   autoSyncToggle.checked = cfg.autoSync !== false;
@@ -770,12 +790,14 @@ function buildSyncTab() {
     window.saveSyncConfig({
       workerUrl:        urlInput.value.trim(),
       secret:           secretInput.value.trim(),
+      username:         usernameInput.value.trim(),
       autoSync:         autoSyncToggle.checked,
       pushIntervalMins: parseFloat(pushIntervalInput.value) || 5,
       pullIntervalHrs:  parseFloat(pullIntervalInput.value) || 2,
     });
     statusEl.textContent = "Config saved.";
   });
+  saveConfigBtn.style.cssText = "margin-top:16px;";
 
   const btnRow = createDiv();
   btnRow.style.cssText = "display:flex; gap:8px; margin-top:16px;";
@@ -807,15 +829,113 @@ function buildSyncTab() {
     }
   }));
 
-  syncContainer.appendChild(urlLabel);
-  syncContainer.appendChild(urlInput);
+
+  // Account registration
+  const registerSection = createDiv('hidden');
+  registerSection.style.cssText = `
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  `;
+
+  const registerTitle = make(
+    "div",
+    "Create Sync Account",
+    "font-weight:600; margin-bottom:6px;"
+  );
+
+  const registerDescription = make(
+    "div",
+    "Create a new account and automatically fill in its credentials. Warning: this does replace your current account if already setup.",
+    "color:var(--muted); font-size:12px; margin-bottom:10px;"
+  );
+  btnRow.appendChild(createButton("New account", () => {registerSection.classList.toggle('hidden'); console.log("pressed");}));
+
+  const registerUsernameInput = createInput("username");
+  registerUsernameInput.type = "text";
+  registerUsernameInput.autocomplete = "username";
+  registerUsernameInput.value = usernameInput.value;
+  registerUsernameInput.style.width = "400px";
+
+  const registerBtn = createButton("Register Account", async () => {
+    const username = registerUsernameInput.value.trim();
+
+    if (!username) {
+      window.showErrorToast?.("Please enter a username.");
+      registerUsernameInput.focus();
+      return;
+    }
+
+    registerBtn.disabled = true;
+    const originalText = registerBtn.textContent;
+    registerBtn.textContent = "Registering...";
+
+    try {
+      const result = await window.syncRegister(username);
+
+      // Fill the existing Sync credentials fields.
+      console.log(result);
+      usernameInput.value = result.username;
+      secretInput.value = result.secret;
+
+      // Keep the registration field synchronized too.
+      registerUsernameInput.value = result.username;
+
+      statusEl.textContent = "Account registered successfully.";
+
+      window.showToast?.("Sync account registered successfully.");
+    } catch (e) {
+      console.error("Account registration failed:", e);
+
+      statusEl.textContent = "Registration failed: " + e.message;
+
+      if (
+        e.message &&
+        (
+          e.message.includes("home_helper") ||
+          e.message.includes("timed out") ||
+          e.message.includes("Connection")
+        )
+      ) {
+        window.showHelperSetupModal?.(
+          "Account Registration",
+          e.message
+        );
+      } else {
+        window.showErrorToast?.(
+          "Registration failed: " + e.message
+        );
+      }
+    } finally {
+      registerBtn.disabled = false;
+      registerBtn.textContent = originalText;
+    }
+  });
+  
+  registerBtn.style.cssText = "margin-top:16px;";
+
+  registerSection.appendChild(registerTitle);
+  registerSection.appendChild(registerDescription);
+  registerSection.appendChild(registerUsernameInput);
+  registerSection.appendChild(document.createElement("br"));
+  registerSection.appendChild(registerBtn);
+
+
+  // If you want to setup your own service uncomment this.
+  //syncContainer.appendChild(urlLabel);
+  //syncContainer.appendChild(urlInput);
+  syncContainer.appendChild(usernameLabel);
+  syncContainer.appendChild(usernameInput);
   syncContainer.appendChild(secretLabel);
   syncContainer.appendChild(secretInput);
+  syncContainer.append(secretCopyButton);
+  syncContainer.appendChild(btnRow);
+  syncContainer.appendChild(statusEl);
+
+  syncContainer.appendChild(registerSection);
   syncContainer.appendChild(autoSyncRow);
   syncContainer.appendChild(intervalRow);
   syncContainer.appendChild(saveConfigBtn);
-  syncContainer.appendChild(btnRow);
-  syncContainer.appendChild(statusEl);
 }
 
 

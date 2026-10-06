@@ -1,15 +1,15 @@
 # PHomePage
 My personal homepage designed to do exactly what it needs to do.
 
-Clean simplistic ui to keep track of todo lists and important information in an unforgettable manner.
+You can **customize** the links at the bottom and the gallery images in the back.
 
-*This project was semi-vibecoded so there will be issues to be expected with it.*
+
 
 ![alt text](preview.png)
 
 # Features
 
-- Place all of em features er'
+
 
 # How to setup
 

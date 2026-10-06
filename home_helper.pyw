@@ -6,7 +6,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from py.browser import open_url, open_app
 from py.apps import get_all_apps
-from py.sync import sync_push, sync_pull
+from py.sync import sync_push, sync_pull, sync_register
 
 RESPONSE_PORT = 19420
 
@@ -99,10 +99,11 @@ def main():
         try:
             worker_url = get(args, "worker_url")
             secret     = get(args, "secret")
+            username     = get(args, "username")
             links      = urllib.parse.unquote(get(args, "links", "[]"))
             notes      = urllib.parse.unquote(get(args, "notes", ""))
             try:
-                result = sync_push(worker_url, secret, links, notes)
+                result = sync_push(worker_url, secret, username, links, notes)
                 serve_response_once({"type": "sync", "action": "push", **result})
             except Exception as e:
                 serve_response_once({"type": "sync", "action": "push", "ok": False, "error": str(e)})
@@ -112,12 +113,23 @@ def main():
 
     if action == "sync_pull":
         worker_url = get(args, "worker_url")
+        username     = get(args, "username")
         secret     = get(args, "secret")
         try:
-            result = sync_pull(worker_url, secret)
+            result = sync_pull(worker_url, secret, username)
             serve_response_once({"type": "sync", "action": "pull", **result})
         except Exception as e:
             serve_response_once({"type": "sync", "action": "pull", "ok": False, "error": str(e)})
+        return
+
+    if action == "sync_register":
+        worker_url = get(args, "worker_url")
+        username   = get(args, "username")
+        try:
+            result = sync_register(worker_url, username)
+            serve_response_once({"type": "sync", "action": "register", **result})
+        except Exception as e:
+            serve_response_once({"type": "sync", "action": "register", "ok": False, "error": str(e)})
         return
 
     # -- Gallery Rebuild --
