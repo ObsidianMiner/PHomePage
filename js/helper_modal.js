@@ -36,42 +36,12 @@
               <li>Syncing links & notes to Cloudflare</li>
             </ul>
 
-            <div class="helper-modal-tabs">
-              <button class="helper-tab-btn active" data-tab="win">Windows Setup</button>
-              <button class="helper-tab-btn" data-tab="linux">Linux Setup</button>
-              <button class="helper-tab-btn" data-tab="manual">Manual CLI</button>
-            </div>
-
-            <div class="helper-tab-content" id="helperTabWin">
-              <ol>
-                <li>Ensure <strong>Python</strong> is installed on your computer.</li>
-                <li>In your file explorer, navigate to the <code>setup/</code> folder in PHomePage:
-                  <div class="helper-code-block">setup/home_helper.reg</div>
-                </li>
-                <li>Double-click <strong>home_helper.reg</strong> and confirm the Windows Registry prompt to register the <code>phome://</code> protocol handler.</li>
-                <li><em>(Note)</em> If Python is not in the default WindowsApps path, open <code>home_helper.reg</code> in Notepad and ensure the path to <code>pythonw.exe</code> and <code>home_helper.pyw</code> matches your system.</li>
-                <li>When your browser shows a popup asking to open <strong>PHome Protocol</strong>, check <strong>"Always allow"</strong> and click <strong>Open</strong>.</li>
-              </ol>
-            </div>
-
-            <div class="helper-tab-content hidden" id="helperTabLinux">
-              <ol>
-                <li>Ensure <strong>Python 3</strong> is installed.</li>
-                <li>Copy the desktop entry to your applications folder:
-                  <div class="helper-code-block">cp setup/home_helper.desktop ~/.local/share/applications/home_helper.desktop</div>
-                </li>
-                <li>Verify the path inside <code>~/.local/share/applications/home_helper.desktop</code> points to your <code>home_helper.pyw</code> script.</li>
-                <li>Register the scheme handler:
-                  <div class="helper-code-block">xdg-mime default home_helper.desktop x-scheme-handler/phome</div>
-                </li>
-              </ol>
-            </div>
-
-            <div class="helper-tab-content hidden" id="helperTabManual">
-              <p>You can also manually rebuild the gallery anytime directly from your terminal:</p>
-              <div class="helper-code-block">python py/generate_gallery.py</div>
+            <div class="helper-tab-content">
+              <p>Installing it is very simple.</p>
+              <p>Navigate to the PHomePage folder and run:</p>
+              <div class="helper-code-block">python setup.py</div>
               <p style="font-size:12px; color:#9aa3b2; margin-top:8px;">
-                This scans the <code>gallery/</code> folder and updates <code>js/galleryphotos.local.js</code> directly.
+                This registers the <code>phome://</code> protocol to enable the website to run python files.
               </p>
             </div>
           </div>
@@ -89,18 +59,6 @@
       modal.onclick = (e) => {
         if (e.target === modal) close();
       };
-
-      // Tab switcher
-      modal.querySelectorAll(".helper-tab-btn").forEach(btn => {
-        btn.onclick = () => {
-          modal.querySelectorAll(".helper-tab-btn").forEach(b => b.classList.remove("active"));
-          btn.classList.add("active");
-          const tab = btn.dataset.tab;
-          modal.querySelector("#helperTabWin").classList.toggle("hidden", tab !== "win");
-          modal.querySelector("#helperTabLinux").classList.toggle("hidden", tab !== "linux");
-          modal.querySelector("#helperTabManual").classList.toggle("hidden", tab !== "manual");
-        };
-      });
 
       // Escape key listener
       document.addEventListener("keydown", (e) => {

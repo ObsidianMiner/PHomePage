@@ -1,9 +1,7 @@
 # PHomePage
 My personal homepage designed to do exactly what it needs to do.
 
-You can **customize** the links at the bottom and the gallery images in the back.
-
-
+You can **customize** the links at the bottom and the gallery images in the back to your liking with a full UI to do so.
 
 ![alt text](preview.png)
 
@@ -15,6 +13,7 @@ You can **customize** the links at the bottom and the gallery images in the back
 
 - [Install this](https://chromewebstore.google.com/detail/custom-new-tab-url/mmjbdbjnoablegbkcklggeknkfcjkjia) or any other custom new tab page extension to set it as your home page.
 - Set the location of index.html on your device as the homepage.
+- Make sure to allow the extension access to file urls.
 
 ## To install support for aditional features. You can setup home helper
 Home helper adds support for opening specific links in a seperate chrome user, different browser, and adding photos to the gallery.

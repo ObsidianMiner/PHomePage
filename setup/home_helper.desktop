@@ -1,6 +1,0 @@
-[Desktop Entry]
-Name=PHome Protocol
-Exec=/usr/bin/python3 /home/USER/home_helper.py %u
-Type=Application
-NoDisplay=true
-MimeType=x-scheme-handler/phome;
