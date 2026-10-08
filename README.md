@@ -18,14 +18,9 @@ You can **customize** the links at the bottom and the gallery images in the back
 ## To install support for aditional features. You can setup home helper
 Home helper adds support for opening specific links in a seperate chrome user, different browser, and adding photos to the gallery.
 
-### Windows:
-
-Run home_helper.reg
-
-### Linux:
-
-Copy home_helper.desktop to ~/.local/share/applications/home_helper.desktop
-Run xdg-mime default home_helper.desktop x-scheme-handler/phome
+To install it just run
+python setup.py
+with python installed. It will then use that version of python when executing any phome commands via the website.
 
 # How To Use
 
