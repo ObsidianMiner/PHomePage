@@ -4,3 +4,4 @@ specificationmk*.md
 data.js.backup
 js/galleryphotos.local.js
 __pycache__/
+.cloudflare/*

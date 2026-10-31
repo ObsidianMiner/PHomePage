@@ -9,7 +9,7 @@ const RESPONSE_PORT = 19420;
 
 // Fallback defaults — overridden by syncConfig values set in settings UI
 const DEFAULT_PUSH_INTERVAL_MINS = 5;
-const DEFAULT_PULL_INTERVAL_HRS  = 2;
+const DEFAULT_PULL_INTERVAL_HRS = 2;
 
 function getPushIntervalMs() {
   const mins = parseFloat(window.getSyncConfig().pushIntervalMins) || DEFAULT_PUSH_INTERVAL_MINS;
@@ -26,11 +26,11 @@ function getPullIntervalMs() {
 // CONFIG HELPERS
 // ======================
 
-window.getSyncConfig = function() {
+window.getSyncConfig = function () {
   return JSON.parse(localStorage.getItem("syncConfig") || "{}");
 };
 
-window.saveSyncConfig = function(cfg) {
+window.saveSyncConfig = function (cfg) {
   localStorage.setItem("syncConfig", JSON.stringify(cfg));
 };
 
@@ -49,7 +49,7 @@ function isAutoSyncEnabled() {
 // Triggers a phome:// protocol call and polls localhost for the response.
 // ======================
 
-window.phomeRequest = function(params, timeoutMs = 15000) {
+window.phomeRequest = function (params, timeoutMs = 15000) {
   const query = new URLSearchParams(params).toString();
   window.location.href = `phome://${query}`;
 
@@ -78,7 +78,8 @@ window.phomeRequest = function(params, timeoutMs = 15000) {
 // picks up the most recently saved data from any tab.
 // ======================
 
-window.syncPush = async function() {
+
+window.syncPush = async function () {
   const { workerUrl, secret, username } = window.getSyncConfig();
   if (!workerUrl || !secret) throw new Error("Sync not configured.");
 
@@ -88,13 +89,16 @@ window.syncPush = async function() {
     || JSON.stringify(window.linksConfig || window.groups);
   const notes = localStorage.getItem("notes") || "";
 
+  const APIKEY = GetAPIKey()
+  const encryptionKey = await GetEncryptionKey();
+
   const result = await window.phomeRequest({
-    action:     "sync_push",
+    action: "sync_push",
     worker_url: workerUrl,
-    secret,
+    secret: APIKEY,
     username,
-    links:      encodeURIComponent(links),
-    notes:      encodeURIComponent(notes)
+    links: encodeURIComponent(await TryEncryptWithKey(encryptionKey, links)),
+    notes: encodeURIComponent(await TryEncryptWithKey(encryptionKey, notes))
   });
 
   if (!result.ok) throw new Error(result.error || "Push failed.");
@@ -102,26 +106,32 @@ window.syncPush = async function() {
   localStorage.setItem("lastPushed", Date.now().toString());
 };
 
-window.syncPull = async function() {
+window.syncPull = async function () {
   const { workerUrl, secret, username } = window.getSyncConfig();
   if (!workerUrl || !secret) throw new Error("Sync not configured.");
 
+  const APIKEY = GetAPIKey()
+
   const result = await window.phomeRequest({
-    action:     "sync_pull",
+    action: "sync_pull",
     worker_url: workerUrl,
-    secret,
+    secret: APIKEY,
     username
   });
+  const encryptionKey = await GetEncryptionKey();
 
   if (!result.ok) throw new Error(result.error || "Pull failed.");
 
   if (result.links) {
-    localStorage.setItem("linksConfig", result.links);
+    decrypted_links = await TryDecryptWithKey(encryptionKey, result.links);
+    localStorage.setItem("linksConfig", decrypted_links);
   }
   if (result.notes !== undefined) {
-    localStorage.setItem("notes", result.notes);
+    decrypted_notes = await TryDecryptWithKey(encryptionKey, result.notes);
+
+    localStorage.setItem("notes", decrypted_notes);
     const pad = document.getElementById("scratchpad");
-    if (pad) pad.value = result.notes;
+    if (pad) pad.value = decrypted_notes;
   }
 
   localStorage.setItem("lastPulled", Date.now().toString());
@@ -142,7 +152,7 @@ window.addEventListener("load", async () => {
   try {
     await window.syncPull();
     if (!window.hasUnsavedEdits) location.reload();
-  } catch(e) {
+  } catch (e) {
     console.warn("Auto pull failed:", e.message);
   }
 });
@@ -167,13 +177,13 @@ window.addEventListener("load", async () => {
 
 async function autoPushTick() {
   if (isAutoSyncEnabled()) {
-    const lastSaved  = parseInt(localStorage.getItem("lastSaved")  || "0", 10);
+    const lastSaved = parseInt(localStorage.getItem("lastSaved") || "0", 10);
     const lastPushed = parseInt(localStorage.getItem("lastPushed") || "0", 10);
 
     if (lastSaved > lastPushed) {
       try {
         await window.syncPush();
-      } catch(e) {
+      } catch (e) {
         console.warn("Auto push failed:", e.message);
       }
     }
@@ -186,10 +196,97 @@ async function autoPushTick() {
 setTimeout(autoPushTick, getPushIntervalMs());
 
 // ======================
+//    TEXT ENCRYPTION
+// ======================
+// A private key is used to encrypt data before sending it to the server so that the server never gets your unencrypted data.
+// Your "secret" given by the website is "[APIKEY]|ENC:[Encryption Key]"
+// Old versions don't have the encryption key so all functions are built into a 'try' architecture. They simply don't encrypt/decrypt if there is no key.
+
+function GetAPIKey() {
+  const { workerUrl, secret, username } = window.getSyncConfig();
+  if (!secret || typeof secret !== 'string') return "";
+
+  const key_end_char = secret.indexOf("|ENC:");
+
+  if (key_end_char == -1) return secret;
+
+  return secret.substring(0, key_end_char);
+}
+async function GetEncryptionKey() {
+  const { workerUrl, secret, username } = window.getSyncConfig();
+  if (typeof secret !== 'string' || !secret) return "";
+
+  const key_start_char = secret.indexOf("|ENC:");
+
+  if (key_start_char == -1) return "";
+
+  const keyAsText = secret.substring(key_start_char + 5);
+
+  const keyByteString = atob(keyAsText)
+  const bytes = new Uint8Array(keyByteString.length)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = keyByteString.charCodeAt([i])
+  }
+  return await window.crypto.subtle.importKey("raw", bytes.buffer, "AES-GCM", true, ["encrypt", "decrypt"])
+}
+async function GenerateEncryptionKeyString() {
+  const key = await window.crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+  const exported = await window.crypto.subtle.exportKey("raw", key);
+  const keyAsText = btoa(String.fromCharCode(...new Uint8Array(exported)));
+  return keyAsText;
+}
+async function TryEncryptWithKey(key, to_encrypt) {
+  if (!key) return to_encrypt
+
+  const encoder = new TextEncoder();
+  const encodedText = encoder.encode(to_encrypt);
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const encryptedBuffer = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv },
+    key,
+    encodedText
+  );
+  const cipherTextBytes = new Uint8Array(encryptedBuffer);
+  const combinedBytes = new Uint8Array(iv.length + cipherTextBytes.length);
+  combinedBytes.set(iv, 0);
+  combinedBytes.set(cipherTextBytes, iv.length);
+  const ciphertextBase64 = btoa(String.fromCharCode(...combinedBytes));
+  return ciphertextBase64;
+}
+async function TryDecryptWithKey(key, toDecryptText) {
+  // If there is no encryption key assume that it was never encrypted, so data can still be retrieved
+  if (!key) return toDecryptText
+
+  const decoder = new TextDecoder();
+
+  const binaryString = atob(toDecryptText)
+  const combinedBytes = new Uint8Array(binaryString.length)
+  for (let i = 0; i < combinedBytes.length; i++) {
+    combinedBytes[i] = binaryString.charCodeAt(i)
+  }
+
+  // The IV is of length 12
+  const iv = combinedBytes.slice(0, 12);
+  const cypherBytes = combinedBytes.slice(12);
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv },
+    key,
+    cypherBytes.buffer
+  );
+  const decryptedText = decoder.decode(decryptedBuffer);
+  return decryptedText;
+}
+
+
+// ======================
 // ACCOUNT REGISTRATION
 // ======================
 
-window.syncRegister = async function(username) {
+window.syncRegister = async function (username) {
   username = username.trim();
 
   if (!username) {
@@ -207,8 +304,6 @@ window.syncRegister = async function(username) {
     username
   });
 
-  console.log(result);
-
   if (!result || !result.ok) {
     throw new Error(
       result?.error || "Unable to create sync account."
@@ -221,16 +316,19 @@ window.syncRegister = async function(username) {
     );
   }
 
+  encryptionKey = await GenerateEncryptionKeyString();
+  const fullSecret = result.secret + "|ENC:" + encryptionKey;
+
   // Save the newly-created credentials immediately.
   window.saveSyncConfig({
     ...cfg,
     workerUrl,
     username: result.username,
-    secret: result.secret
+    secret: fullSecret
   });
 
   return {
     username: result.username,
-    secret: result.secret
+    secret: fullSecret
   };
 };
