@@ -49,24 +49,41 @@ function isAutoSyncEnabled() {
 // Triggers a phome:// protocol call and polls localhost for the response.
 // ======================
 
-window.phomeRequest = function (params, timeoutMs = 15000) {
+window.phomeRequest = async function (params, timeoutMs = 15000) {
+  const res_crypt_key = await GenerateEncryptionKeyString();
+  params["res_crypt_key"] = encodeURIComponent(res_crypt_key);
+
   const query = new URLSearchParams(params).toString();
   window.location.href = `phome://${query}`;
 
+
+  // Send the request
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
 
-    function poll() {
+    async function poll() {
       if (Date.now() > deadline) {
-        reject(new Error("Connection timed out. home_helper is likely not running or not setup to the right directory."));
+        reject(new Error("Connection timed out. home_helper is likely not running or not setup to the right directory."
+        ));
         return;
       }
       fetch(`http://127.0.0.1:${RESPONSE_PORT}`, { cache: "no-store" })
-        .then(r => r.json())
+        .then(async r => {
+          try
+          {
+            const key = await KeyTextToKey(res_crypt_key);
+            const responseText = await r.text();
+            const decrypted = await TryDecryptWithKey(key, responseText);
+            return JSON.parse(decrypted);
+          }
+          catch (err){
+            console.error(err);
+            throw err;
+          }
+        })
         .then(resolve)
         .catch(() => setTimeout(poll, 300));
     }
-
     setTimeout(poll, 400);
   });
 };
@@ -116,7 +133,7 @@ window.remoteRequest = async function (path, method, body = "", tempUsername = n
     if (err.name === "AbortError") {
       throw new Error(`Connection timed out to ${url}`);
     }
-    throw error;
+    throw err;
   }
   finally {
     clearTimeout(timeout)
@@ -160,7 +177,7 @@ window.syncPull = async function () {
   }
   if (encryptedLinks) {
     const links = await TryDecryptWithKey(encryptionKey, encryptedLinks);
-    
+
     // Parse for valid JSON before overwriting
     JSON.parse(links);
 
@@ -250,7 +267,9 @@ async function GetEncryptionKey() {
   if (key_start_char == -1) return "";
 
   const keyAsText = secret.substring(key_start_char + 5);
-
+  return await KeyTextToKey(keyAsText)
+}
+async function KeyTextToKey(keyAsText) {
   const keyByteString = atob(keyAsText)
   const bytes = new Uint8Array(keyByteString.length)
   for (let i = 0; i < bytes.length; i++) {

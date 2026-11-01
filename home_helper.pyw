@@ -1,8 +1,13 @@
+import base64
+import os
 import sys
 import json
 import threading
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# This is going to make a proper python virtual environment setup required.
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from hh_modules.browser import open_url
 from hh_modules.apps import get_all_allowed_apps, open_app
@@ -27,27 +32,75 @@ def parse_args():
     return urllib.parse.parse_qs(raw)
 
 
-def get(args, key, default=None):
+def get(args, key, default=None, uri=None):
     val = args.get(key, [default])[0]
     if isinstance(val, str):
         val = val.removesuffix("/")
+    if val and uri:
+        val = urllib.parse.unquote(val)
     return val
 
+
+# ======================
+# ENCRYPTION FROM JS
+# ======================
+
+def KeyTextToKey(key_as_text: str):
+    """
+    Converts a Base64-encoded AES key into an AES-GCM key.
+    Equivalent to JavaScript KeyTextToKey().
+    """
+    key_bytes = base64.b64decode(key_as_text)
+
+    if len(key_bytes) != 32:
+        raise ValueError("AES-256 keys must be exactly 32 bytes")
+
+    return AESGCM(key_bytes)
+
+
+def TryEncryptWithKey(key, to_encrypt):
+    """
+    Encrypts a string using AES-GCM.
+    Returns Base64(IV + Ciphertext + Authentication Tag).
+    Equivalent to JavaScript TryEncryptWithKey().
+    to_encrypt must be encoded with utf-8
+    """
+    if not key:
+        return to_encrypt
+
+    # Generate a random 12-byte IV
+    iv = os.urandom(12)
+
+    # Encrypt (cryptography automatically appends the 16-byte GCM tag)
+    ciphertext = key.encrypt(iv, to_encrypt, None)
+
+    # Combine IV + ciphertext + authentication tag
+    combined_bytes = iv + ciphertext
+
+    # Base64 encode
+    return base64.b64encode(combined_bytes).decode("ascii")
 
 # ======================
 # ONE-SHOT RESPONSE SERVER
 # ======================
 
-def serve_response_once(data):
+
+def serve_response_once(data, res_crypt_key=None):
     """Spin up a localhost server that serves `data` as JSON exactly once, then stops."""
 
     payload = json.dumps(data).encode("utf-8")
+
+    if res_crypt_key:
+        payload = TryEncryptWithKey(KeyTextToKey(res_crypt_key), payload).encode("utf-8")
+    
+    # Confirmed by here that payload is a valid str aEx...=
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
 
@@ -60,7 +113,7 @@ def serve_response_once(data):
         server.handle_request()  # handles exactly one request then returns
     t = threading.Thread(target=run, daemon=True)
     t.start()
-    t.join(timeout=30)  # wait up to 30s for JS to poll
+    t.join(timeout=3)  # wait up to 3s for JS to poll
 
 
 # ======================
@@ -72,12 +125,13 @@ def main():
     if not args:
         return
 
-    action    = get(args, "action")
-    url       = get(args, "url")
-    browser   = get(args, "browser", "chrome")
-    profile   = get(args, "profile")
-    app       = get(args, "app")
-    app_args  = get(args, "args")
+    action        = get(args, "action")
+    url           = get(args, "url")
+    browser       = get(args, "browser", "chrome")
+    profile       = get(args, "profile")
+    app           = get(args, "app")
+    app_args      = get(args, "args")
+    res_crypt_key = get(args, "res_crypt_key", None, True)
 
 
     # -- Open URL --
@@ -99,14 +153,14 @@ def main():
                 "total_apps": len(formatted_apps),
                 "data": formatted_apps,
                 "output_file": res.get("output_file")
-            })
+            }, res_crypt_key)
         except Exception as e:
             serve_response_once({
                 "type": "apps",
                 "action": "getapps",
                 "ok": False,
                 "error": str(e)
-            })
+            }, res_crypt_key)
         return
     
     # -- Open App --
@@ -119,9 +173,9 @@ def main():
         try:
             from hh_modules.generate_gallery import generate_gallery
             res = generate_gallery()
-            serve_response_once({"type": "gallery", "action": "refresh", **res})
+            serve_response_once({"type": "gallery", "action": "refresh", **res}, res_crypt_key)
         except Exception as e:
-            serve_response_once({"type": "gallery", "action": "refresh", "ok": False, "error": str(e)})
+            serve_response_once({"type": "gallery", "action": "refresh", "ok": False, "error": str(e)}, res_crypt_key)
         return
 
     # -- Open Folder / Gallery Folder --
@@ -140,9 +194,9 @@ def main():
                     target_folder = os.path.join(base_dir, "gallery")
 
             open_folder(target_folder)
-            serve_response_once({"type": "folder", "action": "open", "ok": True, "path": target_folder})
+            serve_response_once({"type": "folder", "action": "open", "ok": True, "path": target_folder}, res_crypt_key)
         except Exception as e:
-            serve_response_once({"type": "folder", "action": "open", "ok": False, "error": str(e)})
+            serve_response_once({"type": "folder", "action": "open", "ok": False, "error": str(e)}, res_crypt_key)
         return
     
 if __name__ == "__main__":
