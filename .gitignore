@@ -7,3 +7,4 @@ js/apps.local.js
 __pycache__/
 .cloudflare/*
 home_helper_last_error.txt
+.venv/*

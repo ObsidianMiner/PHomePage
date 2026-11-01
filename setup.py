@@ -3,26 +3,78 @@
 import sys
 from pathlib import Path
 import os
+import venv
+import subprocess
 
-helper_path = (Path(__file__).resolve().parent / "home_helper.pyw").resolve()
+base_dir = Path(__file__).resolve().parent
+helper_path = (base_dir / "home_helper.pyw").resolve()
+venv_path =(base_dir / ".venv").resolve()
 
 if(not helper_path.exists()):
     raise FileNotFoundError("home_helper.pyw not found in the current directory! Please run setup.py from the same directory as home_helper.pyw")
 
+def install_requirements(python_path):
+    """Install dependencies into the virtual environment."""
 
-def install_for_windows():
+    requirements_file = base_dir / "python_requirements.txt"
+
+    if not requirements_file.exists():
+        print("No requirements.txt found. Skipping dependency installation.")
+        return
+
+    print("Installing Python dependencies...")
+
+    subprocess.run(
+        [
+            str(python_path),
+            "-m",
+            "pip",
+            "install",
+            "-r",
+            str(requirements_file)
+        ],
+        check=True
+    )
+
+    print("Dependencies installed successfully.")
+
+def setup_venv():
+    """Create the virtual environment if it does not already exist."""
+
+    if not venv_path.exists():
+        print("Creating virtual environment...")
+        venv.create(venv_path, with_pip=True)
+        print("Virtual environment created successfully.")
+    else:
+        print("Virtual environment already exists.")
+
+    if sys.platform == "win32":
+        python_path = venv_path / "Scripts" / "python.exe"
+        pythonw_path = venv_path / "Scripts" / "pythonw.exe"
+
+        if not python_path.exists() or not pythonw_path.exists():
+            raise FileNotFoundError("Virtual environment Python executable not found.")
+
+        return python_path, pythonw_path
+    elif sys.platform == "linux":
+        python_path = venv_path / "bin" / "python3"
+
+        if not python_path.exists():
+            raise FileNotFoundError("Virtual environment Python executable not found.")
+
+        return python_path, python_path
+
+    else:
+        raise RuntimeError("Platform not supported.")
+
+def install_for_windows(pythonw_path):
     # Installs on the current user via registry keys
     import winreg
 
-    python_path = (Path(sys.executable).parent / "pythonw.exe").resolve()
-
-    if(not python_path.exists()):
-        raise FileNotFoundError("Could not find pythonw.exe")
-
     print("python path found:")
-    print(python_path)
+    print(pythonw_path)
 
-    command = f'"{python_path}" "{helper_path}" "%1"'
+    command = f'"{pythonw_path}" "{helper_path}" "%1"'
 
     baseRegPath = r"SOFTWARE\Classes\phome"
 
@@ -34,16 +86,11 @@ def install_for_windows():
 
     print("Successfully installed the phome protocol for windows.")
 
-def install_for_linux():
+def install_for_linux(python_path):
     #Installs a .desktop file to .local/share/applications
 
     if(os.getenv("SUDO_USER")):
-        raise Exception("Sudo not supported because it clears the environment variables.")
-
-    python_path = Path(sys.executable)
-
-    if(not python_path.exists()):
-        raise FileNotFoundError("No python3 file could be found")
+        raise Exception("Sudo not supported because it clears the environment variables containing your home directory.")
 
     print("python path found:")
     print(python_path)
@@ -69,16 +116,18 @@ def install_for_linux():
     try:
         subprocess.run(["update-desktop-database", str(desktop_dir.resolve())])
     except:
-        print("update-desktop-database not installed. A device restart may be necessary.")
+        print("WARNING: update-desktop-database not installed. A device restart may be necessary before home helper works.")
 
     print("Successfully installed the phome protocol for linux.")
 
 
 if __name__ == "__main__":
+    python_path, pythonw_path = setup_venv()
+    install_requirements(python_path)
     if sys.platform == "win32":
-        install_for_windows()
+        install_for_windows(pythonw_path)
     elif sys.platform == "linux":
-        install_for_linux()
+        install_for_linux(python_path)
     else:
         print("Platform not supported, only windows and linux are supported.")
         sys.exit(1)
