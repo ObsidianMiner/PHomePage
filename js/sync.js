@@ -151,11 +151,11 @@ window.syncPush = async function () {
     || JSON.stringify(window.linksConfig || window.groups);
   const notes = localStorage.getItem("notes") || "";
 
+  const toStore = JSON.stringify({"links" : links, "notes": notes})
+
   const encryptionKey = await GetEncryptionKey();
 
-  await window.remoteRequest("notes", "PUT", await TryEncryptWithKey(encryptionKey, notes));
-
-  await window.remoteRequest("links", "PUT", await TryEncryptWithKey(encryptionKey, links));
+  await window.remoteRequest("sync", "PUT", await TryEncryptWithKey(encryptionKey, toStore));
 
   localStorage.setItem("lastPushed", Date.now().toString());
 };
@@ -166,22 +166,19 @@ window.syncPull = async function () {
 
   const encryptionKey = await GetEncryptionKey();
 
-  const encryptedNotes = await window.remoteRequest("notes", "GET");
-  const encryptedLinks = await window.remoteRequest("links", "GET");
+  const encryptedData = await window.remoteRequest("sync", "GET");
 
-  if (encryptedNotes) {
-    const notes = await TryDecryptWithKey(encryptionKey, encryptedNotes);
-    localStorage.setItem("notes", notes);
+  if (encryptedData) {
+    const remoteData = JSON.parse(await TryDecryptWithKey(encryptionKey, encryptedData));
+
+    // Overwrite Notes
+    localStorage.setItem("notes", remoteData["notes"]);
     const pad = document.getElementById("scratchpad");
-    if (pad) pad.value = notes;
-  }
-  if (encryptedLinks) {
-    const links = await TryDecryptWithKey(encryptionKey, encryptedLinks);
+    if (pad) pad.value = remoteData["notes"];
 
-    // Parse for valid JSON before overwriting
-    JSON.parse(links);
-
-    localStorage.setItem("linksConfig", links);
+    // Overwrite Links
+    JSON.parse(remoteData["links"]); // Parse for valid JSON before overwriting
+    localStorage.setItem("linksConfig", remoteData["links"]);
   }
 
   localStorage.setItem("lastPulled", Date.now().toString());
