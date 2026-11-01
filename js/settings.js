@@ -809,7 +809,7 @@ function buildSyncTab() {
       statusEl.textContent = `Pushed at ${new Date().toLocaleTimeString()}`;
     } catch(e) {
       statusEl.textContent = "Push failed: " + e.message;
-      if (e.message && (e.message.includes("home_helper") || e.message.includes("timed out"))) {
+      if (e.message && (e.message.includes("home_helper"))) {
         window.showHelperSetupModal?.("Cloud Sync", e.message);
       }
     }

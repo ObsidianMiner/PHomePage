@@ -33,7 +33,6 @@
               <li>Scanning and rebuilding the background gallery</li>
               <li>Opening links in specific browsers or Chrome profiles</li>
               <li>Launching local desktop applications</li>
-              <li>Syncing links & notes to Cloudflare</li>
             </ul>
 
             <div class="helper-tab-content">

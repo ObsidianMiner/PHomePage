@@ -78,6 +78,51 @@ window.phomeRequest = function (params, timeoutMs = 15000) {
 // picks up the most recently saved data from any tab.
 // ======================
 
+window.remoteRequest = async function (path, method, body = "", tempUsername = null, timeoutMs = 7000) {
+
+  const { workerUrl, secret, username } = window.getSyncConfig();
+  if (!workerUrl || !secret) throw new Error("Sync not configured.");
+
+  const url = `${workerUrl.replace(/\/$/, "")}/${path}`;
+  const API_KEY = GetAPIKey();
+
+  // Send the request
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const controller = new AbortController();
+  try {
+
+    const response = await fetch(url, {
+      method,
+      mode: "cors",
+      cache: "no-store",
+      credentials: "omit",
+      signal: controller.signal,
+      headers: {
+        "X-Secret": API_KEY,
+        "Username": tempUsername || username,
+        "Content-Type": "text/plain;charset=UTF-8"
+      },
+      body: method === "GET" ? undefined : body
+    });
+
+    const responseText = response.text();
+
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status}): ${responseText || response.statusText}`);
+    }
+    return responseText;
+  }
+  catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`Connection timed out to ${url}`);
+    }
+    throw error;
+  }
+  finally {
+    clearTimeout(timeout)
+  }
+};
+
 
 window.syncPush = async function () {
   const { workerUrl, secret, username } = window.getSyncConfig();
@@ -89,19 +134,11 @@ window.syncPush = async function () {
     || JSON.stringify(window.linksConfig || window.groups);
   const notes = localStorage.getItem("notes") || "";
 
-  const APIKEY = GetAPIKey()
   const encryptionKey = await GetEncryptionKey();
 
-  const result = await window.phomeRequest({
-    action: "sync_push",
-    worker_url: workerUrl,
-    secret: APIKEY,
-    username,
-    links: encodeURIComponent(await TryEncryptWithKey(encryptionKey, links)),
-    notes: encodeURIComponent(await TryEncryptWithKey(encryptionKey, notes))
-  });
+  await window.remoteRequest("notes", "PUT", await TryEncryptWithKey(encryptionKey, notes));
 
-  if (!result.ok) throw new Error(result.error || "Push failed.");
+  await window.remoteRequest("links", "PUT", await TryEncryptWithKey(encryptionKey, links));
 
   localStorage.setItem("lastPushed", Date.now().toString());
 };
@@ -110,28 +147,24 @@ window.syncPull = async function () {
   const { workerUrl, secret, username } = window.getSyncConfig();
   if (!workerUrl || !secret) throw new Error("Sync not configured.");
 
-  const APIKEY = GetAPIKey()
-
-  const result = await window.phomeRequest({
-    action: "sync_pull",
-    worker_url: workerUrl,
-    secret: APIKEY,
-    username
-  });
   const encryptionKey = await GetEncryptionKey();
 
-  if (!result.ok) throw new Error(result.error || "Pull failed.");
+  const encryptedNotes = await window.remoteRequest("notes", "GET");
+  const encryptedLinks = await window.remoteRequest("links", "GET");
 
-  if (result.links) {
-    decrypted_links = await TryDecryptWithKey(encryptionKey, result.links);
-    localStorage.setItem("linksConfig", decrypted_links);
-  }
-  if (result.notes !== undefined) {
-    decrypted_notes = await TryDecryptWithKey(encryptionKey, result.notes);
-
-    localStorage.setItem("notes", decrypted_notes);
+  if (encryptedNotes) {
+    const notes = await TryDecryptWithKey(encryptionKey, encryptedNotes);
+    localStorage.setItem("notes", notes);
     const pad = document.getElementById("scratchpad");
-    if (pad) pad.value = decrypted_notes;
+    if (pad) pad.value = notes;
+  }
+  if (encryptedLinks) {
+    const links = await TryDecryptWithKey(encryptionKey, encryptedLinks);
+    
+    // Parse for valid JSON before overwriting
+    JSON.parse(links);
+
+    localStorage.setItem("linksConfig", links);
   }
 
   localStorage.setItem("lastPulled", Date.now().toString());
@@ -165,10 +198,6 @@ window.addEventListener("load", async () => {
 //   - localStorage was saved more recently than it was last pushed
 // Reading from localStorage (not in-memory) ensures multi-tab safety:
 // whichever tab saved most recently is what gets pushed.
-// ======================
-
-// ======================
-// PERIODIC AUTO PUSH
 // Self-scheduling so interval changes in settings take effect immediately
 // on the next tick without requiring a page reload.
 // Only pushes if localStorage was saved more recently than last push.
@@ -298,13 +327,11 @@ window.syncRegister = async function (username) {
     cfg.workerUrl ||
     "https://phome-sync.obpickleman.workers.dev";
 
-  const result = await window.phomeRequest({
-    action: "sync_register",
-    worker_url: workerUrl,
-    username
-  });
+  const result = JSON.parse(await window.remoteRequest("register", "POST", null, username));
 
-  if (!result || !result.ok) {
+  console.log(result);
+
+  if (!result) {
     throw new Error(
       result?.error || "Unable to create sync account."
     );
