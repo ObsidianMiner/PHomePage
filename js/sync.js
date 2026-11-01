@@ -345,8 +345,6 @@ window.syncRegister = async function (username) {
 
   const result = JSON.parse(await window.remoteRequest("register", "POST", null, username));
 
-  console.log(result);
-
   if (!result) {
     throw new Error(
       result?.error || "Unable to create sync account."

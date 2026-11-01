@@ -131,11 +131,21 @@ function buildDock()
         shiftShortcutMap[shiftKeyBind] = () => openLink(opts.app ? null : url, opts);
       }
 
-      a.innerHTML = `
-        <img src="${favicon}">
-        <span>${name}</span>
-        ${keyBind || shiftKeyBind ? `<img src="assets/Shortcut.png" class="shortcut-icon">` : ""}
-      `;
+      
+      faviconElement = document.createElement("img");
+      faviconElement.src = favicon;
+      nameSpan = document.createElement("span");
+      nameSpan.textContent = name;
+      a.appendChild(faviconElement);
+      a.appendChild(nameSpan);
+
+      if(keyBind || shiftKeyBind)
+      {
+        shortcutIcon = document.createElement("img");
+        shortcutIcon.src = "assets/Shortcut.png";
+        shortcutIcon.class = "shortcut-icon";
+        a.appendChild(shortcutIcon);
+      }
 
       a.onclick = (e) => {
         e.preventDefault();
