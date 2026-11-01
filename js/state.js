@@ -67,3 +67,45 @@ window.normalizeUrl = function(url) {
   if (!t || t.startsWith("http://") || t.startsWith("https://") || t.startsWith("phome://")) return t;
   return "https://" + t;
 };
+
+
+// ======================
+// SEARCH CONFIG
+// ======================
+
+window.SEARCH_ENGINES = {
+  google:     { name: "Google",     url: "https://www.google.com/search?q=%s" },
+  duckduckgo: { name: "DuckDuckGo", url: "https://duckduckgo.com/?q=%s" },
+  perplexity: { name: "Perplexity", url: "https://www.perplexity.ai/search?q=%s" },
+  brave:      { name: "Brave",      url: "https://search.brave.com/search?q=%s" },
+  claude:     { name: "Claude",     url: "https://claude.ai/new?q=%s" },
+  kagi:       { name: "Kagi",       url: "https://kagi.com/search?q=%s" },
+};
+
+const DEFAULT_SEARCH_CONFIG = {
+  engine: "google",
+  customEngineUrl: "https://www.google.com/search?q=%s",
+  mathEval: true,
+  maxLinkSuggestions: 5,
+  enableApps: true
+};
+
+window.getSearchConfig = function() {
+  try {
+    const saved = localStorage.getItem("searchConfig");
+    if (saved) {
+      return { ...DEFAULT_SEARCH_CONFIG, ...JSON.parse(saved) };
+    }
+  } catch (e) {
+    console.warn("Could not load searchConfig:", e);
+  }
+  return { ...DEFAULT_SEARCH_CONFIG };
+};
+
+window.saveSearchConfig = function(cfg) {
+  try {
+    localStorage.setItem("searchConfig", JSON.stringify(cfg));
+  } catch (e) {
+    console.warn("Could not save searchConfig:", e);
+  }
+};

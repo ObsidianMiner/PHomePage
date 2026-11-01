@@ -27,8 +27,16 @@ async function buildSuggestions(q) {
 
   if (!q) return;
 
+  const cfg = window.getSearchConfig ? window.getSearchConfig() : {
+    engine: "google",
+    customEngineUrl: "https://www.google.com/search?q=%s",
+    mathEval: true,
+    maxLinkSuggestions: 5,
+    enableApps: true
+  };
+
   // --- Math result (first slot if detected) ---
-  if (window.looksLikeMath?.(q)) {
+  if (cfg.mathEval !== false && window.looksLikeMath?.(q)) {
     const math = await window.getMathResult(q);
     if (math) {
       const mathItem = {
@@ -64,9 +72,10 @@ async function buildSuggestions(q) {
     (g.links || []).map(([name, url, , , options]) => ({ name, url, options }))
   );
 
+  const maxLinks = typeof cfg.maxLinkSuggestions === "number" ? cfg.maxLinkSuggestions : 5;
   const matches = allLinks
     .filter(l => l.name.toLowerCase().includes(q))
-    .slice(0, 5);
+    .slice(0, maxLinks);
 
   const sMap = window.shortcutMap || (typeof shortcutMap !== "undefined" ? shortcutMap : {});
   const ssMap = window.shiftShortcutMap || (typeof shiftShortcutMap !== "undefined" ? shiftShortcutMap : {});
@@ -84,10 +93,36 @@ async function buildSuggestions(q) {
     });
   });
 
-  // --- Google fallback ---
+  // --- App matches ---
+
+  // --- Search engine fallback ---
+  const engines = window.SEARCH_ENGINES || {
+    google:     { name: "Google",     url: "https://www.google.com/search?q=%s" },
+    duckduckgo: { name: "DuckDuckGo", url: "https://duckduckgo.com/?q=%s" },
+    perplexity: { name: "Perplexity", url: "https://www.perplexity.ai/search?q=%s" },
+    brave:      { name: "Brave",      url: "https://search.brave.com/search?q=%s" },
+    claude:     { name: "Claude",     url: "https://claude.ai/new?q=%s" },
+    kagi:       { name: "Kagi",       url: "https://kagi.com/search?q=%s" },
+  };
+
+  let engineLabel = "Google";
+  let engineUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+
+  if (engines[cfg.engine]) {
+    engineLabel = engines[cfg.engine].name;
+    engineUrl = engines[cfg.engine].url.replace(/%s/g, encodeURIComponent(q));
+  } else if (cfg.engine === "custom" && cfg.customEngineUrl) {
+    engineLabel = "Web";
+    if (cfg.customEngineUrl.includes("%s")) {
+      engineUrl = cfg.customEngineUrl.replace(/%s/g, encodeURIComponent(q));
+    } else {
+      engineUrl = cfg.customEngineUrl + encodeURIComponent(q);
+    }
+  }
+
   currentItems.push({
-    label:  `Search Google for "${q}"`,
-    action: (shiftHeld = false) => navigate(`https://www.google.com/search?q=${encodeURIComponent(q)}`, shiftHeld)
+    label:  `Search ${engineLabel} for "${q}"`,
+    action: (shiftHeld = false) => navigate(engineUrl, shiftHeld)
   });
 
   // Render non-math items (math item already appended above)

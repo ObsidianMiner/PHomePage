@@ -9,6 +9,7 @@ const settingsWindow = document.getElementById("settingsWindow");
 
 const gallerySettingsEl = document.querySelector("#gallerySettings .tab-inner-container");
 const linkEditorEl      = document.querySelector("#linkEditor .tab-inner-container");
+const searchContainer   = document.getElementById("searchContainer");
 const backupsContainer  = document.getElementById("backupsContainer");
 const syncContainer     = document.getElementById("syncContainer");
 
@@ -90,6 +91,7 @@ function initTabs() {
       document.querySelectorAll(".tab-content").forEach(c => c.classList.add("hidden"));
       document.getElementById(btn.dataset.tab).classList.remove("hidden");
 
+      if (btn.dataset.tab === "searchTab")  buildSearchTab();
       if (btn.dataset.tab === "backupsTab") buildBackupsTab();
       if (btn.dataset.tab === "syncTab")    buildSyncTab();
     };
@@ -637,6 +639,239 @@ function initSaveButtons() {
     localStorage.removeItem("linksConfig");
     location.reload();
   };
+}
+
+
+// ======================
+// SEARCH TAB
+// ======================
+
+function buildSearchTab() {
+  if (!searchContainer) return;
+  searchContainer.innerHTML = "";
+
+  const cfg = window.getSearchConfig ? window.getSearchConfig() : {
+    engine: "google",
+    customEngineUrl: "https://www.google.com/search?q=%s",
+    mathEval: true,
+    maxLinkSuggestions: 5,
+    enableApps: true
+  };
+
+  // Header
+  const headerRow = createDiv("gallery-tab-header");
+  const title = document.createElement("h2");
+  title.textContent = "Search";
+  headerRow.appendChild(title);
+  searchContainer.appendChild(headerRow);
+
+  // 1. Behavior Section (includes Search Provider & options)
+  const behaviorSection = createDiv("settings-section");
+  const behaviorHeading = document.createElement("h3");
+  behaviorHeading.textContent = "Search Behavior";
+  behaviorSection.appendChild(behaviorHeading);
+
+  // Search Provider Row
+  const engineSelectRow = createDiv();
+  engineSelectRow.style.cssText = "display: flex; align-items: center; gap: 10px; margin: 10px 0;";
+  const engineLabel = document.createElement("label");
+  engineLabel.textContent = "Search Provider:";
+  engineLabel.style.fontSize = "13px";
+
+  const engineSelect = document.createElement("select");
+  const engines = [
+    { value: "google", label: "Google" },
+    { value: "duckduckgo", label: "DuckDuckGo" },
+    { value: "brave", label: "Brave" },
+    { value: "perplexity", label: "Perplexity" },
+    { value: "claude", label: "Claude" },
+    { value: "kagi", label: "Kagi" },
+    { value: "custom", label: "Custom URL" }
+  ];
+  engines.forEach(eng => {
+    const opt = document.createElement("option");
+    opt.value = eng.value;
+    opt.textContent = eng.label;
+    if (cfg.engine === eng.value) opt.selected = true;
+    engineSelect.appendChild(opt);
+  });
+
+  engineSelectRow.appendChild(engineLabel);
+  engineSelectRow.appendChild(engineSelect);
+  behaviorSection.appendChild(engineSelectRow);
+
+  // Custom URL Row (visible if custom selected)
+  const customUrlRow = createDiv();
+  customUrlRow.style.cssText = "display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;";
+  if (cfg.engine !== "custom") customUrlRow.style.display = "none";
+
+  const customUrlLabel = document.createElement("label");
+  customUrlLabel.textContent = "Custom Query URL (%s will be replaced with search query):";
+  customUrlLabel.style.fontSize = "12px";
+  customUrlLabel.style.color = "var(--muted)";
+
+  const customUrlInput = createInput("https://www.google.com/search?q=%s");
+  customUrlInput.value = cfg.customEngineUrl || "https://www.google.com/search?q=%s";
+  customUrlInput.style.width = "400px";
+
+  customUrlRow.appendChild(customUrlLabel);
+  customUrlRow.appendChild(customUrlInput);
+  behaviorSection.appendChild(customUrlRow);
+
+  // Math eval checkbox
+  const mathRow = createDiv();
+  mathRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 6px;";
+  const mathToggle = document.createElement("input");
+  mathToggle.type = "checkbox";
+  mathToggle.id = "searchMathToggle";
+  mathToggle.checked = cfg.mathEval !== false;
+  const mathLabel = document.createElement("label");
+  mathLabel.htmlFor = "searchMathToggle";
+  mathLabel.textContent = "Enable inline math evaluation";
+  mathLabel.style.fontSize = "13px";
+  mathRow.appendChild(mathToggle);
+  mathRow.appendChild(mathLabel);
+
+  const mathSub = createDiv("settings-desc");
+  mathSub.style.marginLeft = "22px";
+  mathSub.textContent = "Automatically calculates mathematical expressions (e.g. 24 * 7, sqrt(144)) and shows the answer as the top suggestion.";
+
+  // Max suggestions row
+  const limitRow = createDiv();
+  limitRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-top: 10px;";
+  const limitLabel = document.createElement("label");
+  limitLabel.textContent = "Max link suggestions:";
+  limitLabel.style.fontSize = "13px";
+  const limitInput = createInput("5", "60px");
+  limitInput.type = "number";
+  limitInput.min = "1";
+  limitInput.max = "20";
+  limitInput.value = cfg.maxLinkSuggestions || 5;
+  limitRow.appendChild(limitLabel);
+  limitRow.appendChild(limitInput);
+
+  behaviorSection.appendChild(mathRow);
+  behaviorSection.appendChild(mathSub);
+  behaviorSection.appendChild(limitRow);
+  searchContainer.appendChild(behaviorSection);
+
+  // 2. Installed Applications Section (Prepared for Step 2)
+  const appsSection = createDiv("settings-section");
+  const appsHeading = document.createElement("h3");
+  appsHeading.textContent = "Installed Applications";
+  const appsDesc = createDiv("settings-desc");
+  appsDesc.textContent = "Index local applications via Home Helper to search and launch them directly from the search bar.";
+
+  // App Search Toggle
+  const appSearchRow = createDiv();
+  appSearchRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 12px;";
+  const appSearchToggle = document.createElement("input");
+  appSearchToggle.type = "checkbox";
+  appSearchToggle.id = "searchAppsToggle";
+  appSearchToggle.checked = cfg.enableApps !== false;
+  const appSearchLabel = document.createElement("label");
+  appSearchLabel.htmlFor = "searchAppsToggle";
+  appSearchLabel.textContent = "Show applications in search suggestions";
+  appSearchLabel.style.fontSize = "13px";
+  appSearchRow.appendChild(appSearchToggle);
+  appSearchRow.appendChild(appSearchLabel);
+
+  // Status Box
+  const statusBox = createDiv("apps-status-box");
+  const statusInfo = createDiv("apps-status-info");
+
+  const hasLocalApps = Array.isArray(window.LOCAL_APPS) && window.LOCAL_APPS.length > 0;
+  const appsCount = hasLocalApps ? window.LOCAL_APPS.length : 0;
+
+  const statusTitle = createDiv("apps-status-title");
+  const indicator = document.createElement("span");
+  indicator.className = `apps-status-indicator${hasLocalApps ? " active" : ""}`;
+  const titleText = document.createElement("span");
+  titleText.textContent = hasLocalApps ? `${appsCount} Applications Indexed` : "No Applications Indexed";
+  statusTitle.appendChild(indicator);
+  statusTitle.appendChild(titleText);
+
+  const statusSub = createDiv("apps-status-sub");
+  const lastUpdated = localStorage.getItem("lastAppsUpdated");
+  if (lastUpdated) {
+    statusSub.textContent = `Last updated: ${new Date(parseInt(lastUpdated, 10)).toLocaleString()} (js/apps.local.js)`;
+  } else if (hasLocalApps) {
+    statusSub.textContent = "Loaded from js/apps.local.js";
+  }
+
+  statusInfo.appendChild(statusTitle);
+  if (statusSub.textContent) {
+    statusInfo.appendChild(statusSub);
+  }
+
+  // Update button (Prepared for Step 2)
+  const updateAppsBtn = document.createElement("button");
+  updateAppsBtn.id = "updateAppsBtn";
+  updateAppsBtn.className = "search-action-btn";
+  updateAppsBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> <span>Update Apps</span>';
+  updateAppsBtn.title = "Update apps.local.js from Home Helper's getapps command";
+  updateAppsBtn.onclick = () => {
+    if (typeof window.updateLocalApps === "function") {
+      window.updateLocalApps();
+    } else {
+      window.showToast?.("Apps updater will be connected in Step 2.");
+    }
+  };
+
+  statusBox.appendChild(statusInfo);
+  statusBox.appendChild(updateAppsBtn);
+
+  appsSection.appendChild(appsHeading);
+  appsSection.appendChild(appsDesc);
+  appsSection.appendChild(appSearchRow);
+  appsSection.appendChild(statusBox);
+  searchContainer.appendChild(appsSection);
+
+  // 3. Save Button & Feedback
+  const footerRow = createDiv();
+  footerRow.style.cssText = "display: flex; align-items: center; gap: 12px; margin-top: 18px;";
+
+  const statusMsg = document.createElement("span");
+  statusMsg.style.cssText = "font-size: 12px; color: var(--muted);";
+
+  const markUnsaved = () => {
+    saveBtn.classList.add("has-changes");
+    statusMsg.textContent = "Unsaved changes";
+  };
+
+  engineSelect.onchange = () => {
+    if (engineSelect.value === "custom") {
+      customUrlRow.style.display = "flex";
+    } else {
+      customUrlRow.style.display = "none";
+    }
+    markUnsaved();
+  };
+  customUrlInput.oninput = markUnsaved;
+  mathToggle.onchange = markUnsaved;
+  limitInput.oninput = markUnsaved;
+  appSearchToggle.onchange = markUnsaved;
+
+  const saveBtn = createButton("Save Search Settings", () => {
+    const updatedCfg = {
+      engine: engineSelect.value,
+      customEngineUrl: customUrlInput.value.trim() || "https://www.google.com/search?q=%s",
+      mathEval: mathToggle.checked,
+      maxLinkSuggestions: parseInt(limitInput.value, 10) || 5,
+      enableApps: appSearchToggle.checked
+    };
+    if (window.saveSearchConfig) {
+      window.saveSearchConfig(updatedCfg);
+    }
+    saveBtn.classList.remove("has-changes");
+    statusMsg.textContent = "Search settings saved.";
+    window.showToast?.("Search settings saved.");
+  });
+  saveBtn.className = "search-save-btn";
+
+  footerRow.appendChild(saveBtn);
+  footerRow.appendChild(statusMsg);
+  searchContainer.appendChild(footerRow);
 }
 
 
