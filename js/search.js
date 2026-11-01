@@ -15,6 +15,15 @@ function navigate(url, shiftHeld = false) {
   else window.location.href = url;
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 
 // ======================
 // BUILD SUGGESTIONS
@@ -59,7 +68,7 @@ async function buildSuggestions(q) {
     }
   }
 
-  // --- Link matches ---
+  // --- Link & App matches (Combined limit, Links first, then Apps) ---
   let savedGroups;
   try {
     savedGroups = JSON.parse(localStorage.getItem("linksConfig"));
@@ -72,16 +81,44 @@ async function buildSuggestions(q) {
     (g.links || []).map(([name, url, , , options]) => ({ name, url, options }))
   );
 
-  const maxLinks = typeof cfg.maxLinkSuggestions === "number" ? cfg.maxLinkSuggestions : 5;
-  const matches = allLinks
-    .filter(l => l.name.toLowerCase().includes(q))
-    .slice(0, maxLinks);
+  const maxTotal = typeof cfg.maxLinkSuggestions === "number" ? cfg.maxLinkSuggestions : 5;
+
+  // Filter matching links
+  const matchingLinks = allLinks.filter(l => l.name.toLowerCase().includes(q));
+
+  // Filter matching apps
+  let matchingApps = [];
+  if (cfg.enableApps !== false) {
+    const localApps = window.LOCAL_APPS || (typeof LOCAL_APPS !== "undefined" ? LOCAL_APPS : []);
+    if (Array.isArray(localApps) && localApps.length > 0) {
+      matchingApps = localApps.filter(a => a.name && a.name.toLowerCase().includes(q));
+      // Prioritize apps that start with the query, then sort alphabetically
+      matchingApps.sort((a, b) => {
+        const aStarts = a.name.toLowerCase().startsWith(q);
+        const bStarts = b.name.toLowerCase().startsWith(q);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+  }
+
+  // Allocate slots: Links first, then Apps up to combined maxTotal limit.
+  // When both links and apps match, ensure at least one app can be shown if slots > 1.
+  let linkLimit = maxTotal;
+  if (matchingApps.length > 0 && maxTotal > 1) {
+    linkLimit = Math.min(matchingLinks.length, maxTotal - 1);
+  }
+  const selectedLinks = matchingLinks.slice(0, linkLimit);
+  const remainingAppSlots = Math.max(0, maxTotal - selectedLinks.length);
+  const selectedApps = matchingApps.slice(0, remainingAppSlots);
 
   const sMap = window.shortcutMap || (typeof shortcutMap !== "undefined" ? shortcutMap : {});
   const ssMap = window.shiftShortcutMap || (typeof shiftShortcutMap !== "undefined" ? shiftShortcutMap : {});
   const doOpenLink = window.openLink || (typeof openLink !== "undefined" ? openLink : (url, opts) => { window.location.href = url; });
 
-  matches.forEach(m => {
+  // Add Link suggestions
+  selectedLinks.forEach(m => {
     let title = "Open " + m.name;
     const firstLetter = m.name[0]?.toUpperCase();
     if (firstLetter && sMap[firstLetter])   title += ` (Ctrl+${firstLetter})`;
@@ -89,11 +126,29 @@ async function buildSuggestions(q) {
 
     currentItems.push({
       label:  title,
+      isLink: true,
       action: (shiftHeld = false) => doOpenLink(m.url, m.options)
     });
   });
 
-  // --- App matches ---
+  // Add App suggestions
+  selectedApps.forEach(app => {
+    currentItems.push({
+      label:   `Launch ${app.name}`,
+      appName: app.name,
+      isApp:   true,
+      action:  () => {
+        if (typeof doOpenLink === "function") {
+          doOpenLink(null, { app: app.name });
+        } else {
+          window.location.href = `phome://?app=${encodeURIComponent(app.name)}`;
+        }
+        search.value = "";
+        suggestions.innerHTML = "";
+        search.blur();
+      }
+    });
+  });
 
   // --- Search engine fallback ---
   const engines = window.SEARCH_ENGINES || {
@@ -128,9 +183,18 @@ async function buildSuggestions(q) {
   // Render non-math items (math item already appended above)
   currentItems.slice(currentItems[0]?.isMath ? 1 : 0).forEach(item => {
     const div = document.createElement("div");
-    div.className   = "suggestion";
-    div.textContent = item.label;
-    div.onclick     = (e) => item.action(e.shiftKey);
+    div.className = "suggestion" + (item.isApp ? " suggestion-app" : "");
+    if (item.isApp) {
+      div.innerHTML = `
+        <span class="suggestion-text">
+          <img src="assets/app_2.png" onerror="this.onerror=null;this.src='assets/app.png';" class="suggestion-app-icon" alt="" />
+          <span>Launch ${escapeHtml(item.appName)}</span>
+        </span>
+      `;
+    } else {
+      div.textContent = item.label;
+    }
+    div.onclick = (e) => item.action(e.shiftKey);
     suggestions.appendChild(div);
   });
 }

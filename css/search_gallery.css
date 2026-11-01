@@ -21,36 +21,52 @@
 }
 
 .suggestion {
-  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
   cursor: pointer;
+  box-sizing: border-box;
+  color: #e6e9ef;
+  font-size: 14px;
+  transition: background 0.12s ease;
 }
 
 .suggestion:hover {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.06);
 }
 .suggestion.active {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.12);
 }
 
-/* MIDDLE / SCRATCHPAD */
-.middle {
-  position: relative;
-  flex: 1;
+.suggestion-text {
   display: flex;
-  justify-content: center;
   align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-#scratchpad {
-  width: 60%;
-  height: 60%;
-  background: rgba(20,20,30,0.85);
-  border: none;
-  border-radius: 12px;
-  padding: 20px;
-  font-size: 16px;
-  color: white;
+.suggestion-app-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  margin-right: 10px;
+  flex-shrink: 0;
+  opacity: 0.9;
 }
+
+.suggestion-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
 
 /* GALLERY */
 .gallery {

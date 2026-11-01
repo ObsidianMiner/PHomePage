@@ -740,7 +740,8 @@ function buildSearchTab() {
   const limitRow = createDiv();
   limitRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-top: 10px;";
   const limitLabel = document.createElement("label");
-  limitLabel.textContent = "Max link suggestions:";
+  limitLabel.textContent = "Max suggestions (links & apps):";
+  limitLabel.title = "Combined limit for matching links and applications in search suggestions";
   limitLabel.style.fontSize = "13px";
   const limitInput = createInput("5", "60px");
   limitInput.type = "number";
