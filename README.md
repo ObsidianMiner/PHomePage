@@ -19,7 +19,7 @@ Designed to be simple to setup anywhere without a background program or local se
 - Make sure to allow the extension access to file urls in your browsers extension config.
 
 # Enabling Extra Features
-To enable syncing and other features like syncing, and application shortcuts
+To enable gallery refreshing, opening applications on your computer and other power features you will need to run the home helper setup.
 Run the setup command in the main directory. This will setup the phome protocol the website can use.
 ```
 python setup.py

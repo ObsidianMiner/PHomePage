@@ -34,14 +34,6 @@ def open_url(url, browser="chrome", profile=None):
             subprocess.Popen(cmd)
 
 
-def open_app(path, args=None):
-    path = urllib.parse.unquote(path)
-    cmd = [path]
-    if args:
-        cmd.extend(args.split(" "))
-    subprocess.Popen(cmd)
-
-
 def open_folder(path):
     """Open folder in OS filesystem viewer (Explorer on Windows, xdg-open on Linux, open on macOS)."""
     path = urllib.parse.unquote(str(path))

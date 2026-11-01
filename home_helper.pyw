@@ -4,8 +4,8 @@ import threading
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-from py.browser import open_url, open_app
-from py.apps import get_all_apps
+from hh_modules.browser import open_url
+from hh_modules.apps import get_all_allowed_apps, open_app
 
 RESPONSE_PORT = 19420
 
@@ -79,15 +79,18 @@ def main():
     app       = get(args, "app")
     app_args  = get(args, "args")
 
+
     # -- Open URL --
     if url:
-        if url == "getapps":
-            apps = get_all_apps()
-            serve_response_once({"type": "apps", "data": apps})
-        else:
-            open_url(url, browser, profile)
+        open_url(url, browser, profile)
         return
 
+    # -- Get All Installed Apps --
+    if action == "getapps":
+        apps = get_all_allowed_apps()
+
+        serve_response_once({"type": "apps", "data": apps})
+    
     # -- Open App --
     if app:
         open_app(app, app_args)
@@ -96,7 +99,7 @@ def main():
     # -- Gallery Rebuild --
     if action in ("refresh_gallery", "rebuild_gallery", "generate_gallery"):
         try:
-            from py.generate_gallery import generate_gallery
+            from hh_modules.generate_gallery import generate_gallery
             res = generate_gallery()
             serve_response_once({"type": "gallery", "action": "refresh", **res})
         except Exception as e:
@@ -123,7 +126,14 @@ def main():
         except Exception as e:
             serve_response_once({"type": "folder", "action": "open", "ok": False, "error": str(e)})
         return
-
-
+    
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BaseException as e:
+        from pathlib import Path
+        import traceback
+        error_message_with_trace = traceback.format_exc()
+        
+        with open(Path(__file__).with_name("home_helper_last_error.txt"), "w", encoding="utf-8") as ofile:
+            ofile.write(error_message_with_trace)
