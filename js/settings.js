@@ -761,7 +761,6 @@ function buildSearchTab() {
   appsHeading.textContent = "Installed Applications";
   const appsDesc = createDiv("settings-desc");
   appsDesc.textContent = "Index local applications via Home Helper to search and launch them directly from the search bar.";
-
   // App Search Toggle
   const appSearchRow = createDiv();
   appSearchRow.style.cssText = "display: flex; align-items: center; gap: 8px; margin-bottom: 12px;";
@@ -804,17 +803,58 @@ function buildSearchTab() {
     statusInfo.appendChild(statusSub);
   }
 
-  // Update button (Prepared for Step 2)
+  // Update button
   const updateAppsBtn = document.createElement("button");
   updateAppsBtn.id = "updateAppsBtn";
   updateAppsBtn.className = "search-action-btn";
   updateAppsBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> <span>Update Apps</span>';
   updateAppsBtn.title = "Update apps.local.js from Home Helper's getapps command";
-  updateAppsBtn.onclick = () => {
-    if (typeof window.updateLocalApps === "function") {
-      window.updateLocalApps();
-    } else {
-      window.showToast?.("Apps updater will be connected in Step 2.");
+  updateAppsBtn.onclick = async () => {
+    if (updateAppsBtn.disabled) return;
+    updateAppsBtn.disabled = true;
+    const curIcon = updateAppsBtn.querySelector("i");
+    const curLabel = updateAppsBtn.querySelector("span");
+    if (curIcon) curIcon.classList.add("fa-spin");
+    if (curLabel) curLabel.textContent = "Updating...";
+
+    try {
+      if (typeof window.phomeRequest !== "function") {
+        throw new Error("phomeRequest is not available. Please ensure sync.js is loaded.");
+      }
+
+      const result = await window.phomeRequest({ action: "getapps" }, 15000);
+
+      if (result && result.ok) {
+        if (Array.isArray(result.data)) {
+          window.LOCAL_APPS = result.data;
+          if (typeof LOCAL_APPS !== "undefined") {
+            try { LOCAL_APPS = result.data; } catch (_) {}
+          }
+        }
+        const total = result.total_apps ?? (result.data || []).length;
+        localStorage.setItem("lastAppsUpdated", Date.now().toString());
+        buildSearchTab();
+        window.showToast?.(`Applications updated: ${total} apps indexed.`);
+      } else {
+        const errMsg = result?.error || "Failed to update applications.";
+        window.showErrorToast?.(errMsg);
+      }
+    } catch (err) {
+      console.warn("Apps update failed:", err);
+      if (typeof window.showHelperSetupModal === "function") {
+        window.showHelperSetupModal("Update Applications", err.message);
+      } else {
+        window.showErrorToast?.("Home Helper connection failed: " + err.message);
+      }
+    } finally {
+      const activeBtn = document.getElementById("updateAppsBtn");
+      if (activeBtn) {
+        activeBtn.disabled = false;
+        const icon = activeBtn.querySelector("i");
+        const label = activeBtn.querySelector("span");
+        if (icon) icon.classList.remove("fa-spin");
+        if (label) label.textContent = "Update Apps";
+      }
     }
   };
 

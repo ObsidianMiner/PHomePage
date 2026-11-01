@@ -87,9 +87,27 @@ def main():
 
     # -- Get All Installed Apps --
     if action == "getapps":
-        apps = get_all_allowed_apps()
-
-        serve_response_once({"type": "apps", "data": apps})
+        try:
+            from hh_modules.apps import get_all_allowed_apps, other_allowed_apps, filter_and_format_apps, save_apps_to_file
+            raw_apps = get_all_allowed_apps() + other_allowed_apps
+            formatted_apps = filter_and_format_apps(raw_apps)
+            res = save_apps_to_file(formatted_apps)
+            serve_response_once({
+                "type": "apps",
+                "action": "getapps",
+                "ok": True,
+                "total_apps": len(formatted_apps),
+                "data": formatted_apps,
+                "output_file": res.get("output_file")
+            })
+        except Exception as e:
+            serve_response_once({
+                "type": "apps",
+                "action": "getapps",
+                "ok": False,
+                "error": str(e)
+            })
+        return
     
     # -- Open App --
     if app:

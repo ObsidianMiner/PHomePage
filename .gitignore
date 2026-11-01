@@ -3,6 +3,7 @@ specification.md
 specificationmk*.md
 data.js.backup
 js/galleryphotos.local.js
+js/apps.local.js
 __pycache__/
 .cloudflare/*
 home_helper_last_error.txt
