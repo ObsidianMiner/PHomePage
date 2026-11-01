@@ -1,0 +1,56 @@
+{
+  "name": "phome-sync",
+  "main": "src/worker.js",
+  "workers_dev": true,
+  "preview_urls": false,
+  "compatibility_date": "2026-04-15",
+  "ratelimits": [
+    {
+      "name": "REGISTRATION_RATE_LIMITER",
+      "namespace_id": "2",
+      "simple": {
+        "limit": 5,
+        "period": 60       // Must be either 10 or 60 seconds
+      }
+    },
+    {
+      "name": "SYNC_RATE_LIMITER",
+      "namespace_id": "4",
+      "simple": {
+        "limit": 10,
+        "period": 60       // Must be either 10 or 60 seconds
+      }
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": false,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    },
+    "issues": {
+      "enabled": true
+    }
+  },
+  "kv_namespaces": [
+    {
+      "id": "6711679d78aa41bc9546b7e4b3c4a7f7",
+      "binding": "DATA"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_id": "10ef1980-e3e8-49de-b8b6-b256f2b64673"
+    }
+  ]
+}
