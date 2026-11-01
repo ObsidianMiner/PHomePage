@@ -98,7 +98,7 @@ window.phomeRequest = async function (params, timeoutMs = 15000) {
 window.remoteRequest = async function (path, method, body = "", tempUsername = null, timeoutMs = 7000) {
 
   const { workerUrl, secret, username } = window.getSyncConfig();
-  if (!workerUrl || !secret) throw new Error("Sync not configured.");
+  if (!tempUsername && (!workerUrl || !secret)) throw new Error("Sync not configured.");
 
   const url = `${workerUrl.replace(/\/$/, "")}/${path}`;
   const API_KEY = GetAPIKey();
